@@ -1,0 +1,58 @@
+// 配置 DATABASE_URL 后执行: npx prisma migrate dev
+// 部署前: npx prisma migrate deploy && npx prisma generate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 云端账号（可选；未配置数据库时本应用仍仅使用本地 localStorage）
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  passwordHash String            @map("password_hash")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  subscription Subscription?
+  /// 每人一包业务数据（JSON），与本地备份结构对齐
+  projectData  UserProjectData?
+}
+
+/// 用户项目数据（客户/商品/报价/合同等打一包）
+model UserProjectData {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 与 DataBackupPayload 同构或子集，由应用约定版本
+  payload        Json     @default("{}")
+  payloadVersion Int      @default(2) @map("payload_version")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+}
+
+/// 订阅状态：后续可由支付 Webhook 写入，当前支持注册时试用与后台手工改库
+model Subscription {
+  id         String    @id @default(cuid())
+  userId     String    @unique @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       String
+  status     String
+  validUntil DateTime? @map("valid_until")
+  provider   String    @default("manual")
+  externalId String?   @map("external_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+}
+
+/// 邮箱注册验证码（短期有效）
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+}

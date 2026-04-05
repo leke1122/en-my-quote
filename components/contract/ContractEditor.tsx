@@ -1,0 +1,1453 @@
+"use client";
+
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import Link from "next/link";
+import QRCode from "qrcode";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Modal } from "@/components/Modal";
+import { PageHeader } from "@/components/PageHeader";
+import { TextButton } from "@/components/TextButton";
+import { amountToChineseUppercase } from "@/lib/chineseAmount";
+import { CONTRACT_INTRO } from "@/lib/contractDefaults";
+import {
+  contractExtraFeesTotal,
+  contractGrandTotalFromState,
+  contractLinesSubtotal,
+  contractTaxFromSubtotal,
+} from "@/lib/contractTotals";
+import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
+import { decodeSharePayload, encodeSharePayload } from "@/lib/share";
+import { formatCurrency } from "@/lib/format";
+import { partyFromCompany, partyFromCustomer } from "@/lib/partyFromMasters";
+import { initialClausesWithDeliveryAddress, quoteLinesToContractLines } from "@/lib/quoteToContract";
+import { dateToYmdCompact } from "@/lib/quoteNumber";
+import {
+  getCompanies,
+  getContracts,
+  getCustomers,
+  getProducts,
+  getQuotes,
+  setContracts,
+  setProducts,
+} from "@/lib/storage";
+import type {
+  Company,
+  Contract,
+  ContractLine,
+  ContractPartySnapshot,
+  Customer,
+  Product,
+  Quote,
+  QuoteExtraFee,
+} from "@/lib/types";
+
+function todayIso(): string {
+  const d = new Date();
+  const z = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+
+function newLineId(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `cl-${Date.now()}-${Math.random()}`;
+}
+
+function calcLineAmount(price: number, qty: number): number {
+  return Math.round(price * qty * 100) / 100;
+}
+
+function formatSigningDateChinese(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
+}
+
+const emptyParty: ContractPartySnapshot = {
+  name: "",
+  address: "",
+  agent: "",
+  phone: "",
+  bankName: "",
+  bankAccount: "",
+  taxId: "",
+};
+
+const emptyQuickProduct: Omit<Product, "id"> = {
+  code: "",
+  name: "",
+  model: "",
+  spec: "",
+  unit: "",
+  price: 0,
+  image: "",
+};
+
+type LineTextDraft = Record<string, { price?: string; qty?: string }>;
+type ExtraFeeAmountDraft = Record<string, string>;
+
+function displayLinePrice(l: ContractLine, draft: LineTextDraft): string {
+  const v = draft[l.id]?.price;
+  if (v !== undefined) return v;
+  return l.price === 0 ? "" : String(l.price);
+}
+
+function displayLineQty(l: ContractLine, draft: LineTextDraft): string {
+  const v = draft[l.id]?.qty;
+  if (v !== undefined) return v;
+  return l.qty === 0 ? "" : String(l.qty);
+}
+
+function displayExtraFeeAmount(f: QuoteExtraFee, draft: ExtraFeeAmountDraft): string {
+  const v = draft[f.id];
+  if (v !== undefined) return v;
+  return f.amount === 0 ? "" : String(f.amount);
+}
+
+interface ContractSharePayload {
+  type: "contract";
+  contractNo: string;
+  signingDate: string;
+  signingPlace: string;
+  companyId: string;
+  customerId: string;
+  lines: ContractLine[];
+  clauses: string[];
+  buyer: ContractPartySnapshot;
+  seller: ContractPartySnapshot;
+  taxIncluded?: boolean;
+  taxRate?: number;
+  extraFees?: QuoteExtraFee[];
+  sourceQuoteId?: string;
+}
+
+function clausesHasContent(clauses: string[]): boolean {
+  return clauses.some((t) => t.trim().length > 0);
+}
+
+interface Html2CanvasCloneOpts {
+  hasClausesContent: boolean;
+}
+
+function contractHtml2canvasOnClone(clonedDoc: Document, opts: Html2CanvasCloneOpts) {
+  const root = clonedDoc.getElementById("contract-print");
+  if (!root) return;
+  const el = root as HTMLElement;
+  el.classList.add("quote-export-capture");
+  const exportFix = clonedDoc.createElement("style");
+  exportFix.textContent = `
+#contract-print.quote-export-capture {
+  max-width: none !important;
+  width: max-content !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-wrap {
+  overflow: visible !important;
+  max-height: none !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-desktop {
+  display: block !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-mobile {
+  display: none !important;
+}
+#contract-print.quote-export-capture .quote-print-logo-cell {
+  height: auto !important;
+  max-height: 5.5rem !important;
+  width: 7rem !important;
+  align-items: flex-start !important;
+}
+#contract-print.quote-export-capture .quote-print-logo {
+  max-height: 5rem !important;
+  max-width: 7rem !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+#contract-print.quote-export-capture .contract-print-seal {
+  max-height: 5.5rem !important;
+  max-width: 38% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+`.trim();
+  clonedDoc.head.appendChild(exportFix);
+
+  el.style.overflow = "visible";
+  el.style.maxHeight = "none";
+  el.style.height = "auto";
+  root.querySelectorAll(".quote-no-print").forEach((rm) => {
+    (rm as HTMLElement).remove();
+  });
+  if (!opts.hasClausesContent) {
+    clonedDoc.getElementById("contract-clauses-section")?.remove();
+  }
+  root.querySelectorAll("input").forEach((inp) => {
+    const input = inp as HTMLInputElement;
+    if (input.type === "hidden") return;
+    const wrap = clonedDoc.createElement("span");
+    wrap.className =
+      "inline-block min-h-[1.35em] whitespace-pre-wrap break-words align-middle leading-normal";
+    if (input.type === "date") {
+      wrap.textContent = input.value ? formatSigningDateChinese(input.value) : "—";
+    } else if (input.type === "checkbox") {
+      wrap.textContent = input.checked ? "是" : "否";
+    } else {
+      wrap.textContent = input.value || "—";
+    }
+    input.replaceWith(wrap);
+  });
+  root.querySelectorAll("select").forEach((sel) => {
+    const select = sel as HTMLSelectElement;
+    const span = clonedDoc.createElement("span");
+    span.className = "block min-h-[1.35em] whitespace-pre-wrap break-words leading-normal py-1";
+    const opt = select.options[select.selectedIndex];
+    span.textContent = opt ? opt.text : "—";
+    select.replaceWith(span);
+  });
+  root.querySelectorAll("textarea").forEach((ta) => {
+    const tx = ta as HTMLTextAreaElement;
+    const div = clonedDoc.createElement("div");
+    div.className = "whitespace-pre-wrap break-words text-sm leading-relaxed";
+    div.textContent = tx.value || "—";
+    tx.replaceWith(div);
+  });
+}
+
+function canvasGrayscaleForExport(src: HTMLCanvasElement): HTMLCanvasElement {
+  const w = src.width;
+  const h = src.height;
+  const dest = document.createElement("canvas");
+  dest.width = w;
+  dest.height = h;
+  const ctx = dest.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return src;
+  ctx.drawImage(src, 0, 0);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    const adj = Math.min(255, Math.max(0, (lum - 128) * 1.08 + 128));
+    const u = Math.round(adj);
+    data[i] = u;
+    data[i + 1] = u;
+    data[i + 2] = u;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return dest;
+}
+
+function newProductCode(existing: Product[]): string {
+  return `P${String(existing.length + 1).padStart(5, "0")}`;
+}
+
+export function ContractEditor() {
+  const sp = useSearchParams();
+  const contractIdParam = sp.get("id");
+  const fromQuoteParam = sp.get("fromQuote");
+  const shareParam = sp.get("share");
+
+  const [companies, setCompaniesState] = useState<Company[]>([]);
+  const [customers, setCustomersState] = useState<Customer[]>([]);
+  const [products, setProductsState] = useState<Product[]>([]);
+
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [isDraft, setIsDraft] = useState(true);
+  const [contractNo, setContractNo] = useState("");
+  const [signingDate, setSigningDate] = useState(todayIso);
+  const [signingPlace, setSigningPlace] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [showCustDrop, setShowCustDrop] = useState(false);
+
+  const [lines, setLines] = useState<ContractLine[]>([]);
+  const [clauses, setClauses] = useState<string[]>([]);
+  const [buyer, setBuyer] = useState<ContractPartySnapshot>(emptyParty);
+  const [seller, setSeller] = useState<ContractPartySnapshot>(emptyParty);
+  const [sourceQuoteId, setSourceQuoteId] = useState<string | undefined>();
+  const [taxIncluded, setTaxIncluded] = useState(false);
+  const [taxRate, setTaxRate] = useState(13);
+  const [extraFees, setExtraFees] = useState<QuoteExtraFee[]>([]);
+  const [extraFeeAmountDraft, setExtraFeeAmountDraft] = useState<ExtraFeeAmountDraft>({});
+
+  const [lineTextDraft, setLineTextDraft] = useState<LineTextDraft>({});
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickQuoteOpen, setPickQuoteOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [quickProductOpen, setQuickProductOpen] = useState(false);
+  const [quickProduct, setQuickProduct] = useState(emptyQuickProduct);
+
+  const [contractNoLocked, setContractNoLocked] = useState(false);
+  const [suppressAutoNo, setSuppressAutoNo] = useState(false);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareQr, setShareQr] = useState("");
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState("");
+  const [exportInColor, setExportInColor] = useState(false);
+
+  const refreshStores = useCallback(() => {
+    setCompaniesState(getCompanies());
+    setCustomersState(getCustomers());
+    setProductsState(getProducts());
+  }, []);
+
+  useEffect(() => {
+    refreshStores();
+  }, [refreshStores]);
+
+  const company = useMemo(() => companies.find((c) => c.id === companyId), [companies, companyId]);
+  const customer = useMemo(() => customers.find((c) => c.id === customerId), [customers, customerId]);
+
+  const ymdCompact = dateToYmdCompact(signingDate);
+  const subtotal = useMemo(() => contractLinesSubtotal(lines), [lines]);
+  const taxAmt = useMemo(
+    () => contractTaxFromSubtotal(subtotal, taxIncluded, taxRate),
+    [subtotal, taxIncluded, taxRate]
+  );
+  const extraFeesSum = useMemo(() => contractExtraFeesTotal(extraFees), [extraFees]);
+  const grandTotal = useMemo(
+    () => contractGrandTotalFromState(lines, taxIncluded, taxRate, extraFees),
+    [lines, taxIncluded, taxRate, extraFees]
+  );
+  const amountCn = useMemo(() => amountToChineseUppercase(grandTotal), [grandTotal]);
+
+  const custFiltered = useMemo(() => {
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return customers.slice(0, 50);
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.contact.toLowerCase().includes(q)
+    );
+  }, [customers, customerQuery]);
+
+  const productsFiltered = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.model.toLowerCase().includes(q)
+    );
+  }, [products, productSearch]);
+
+  const applyImportedContract = useCallback((data: ContractSharePayload) => {
+    setContractId(null);
+    setIsDraft(true);
+    setSuppressAutoNo(true);
+    setContractNo(data.contractNo);
+    setSigningDate(data.signingDate);
+    setSigningPlace(data.signingPlace);
+    setCompanyId(data.companyId);
+    setCustomerId(data.customerId);
+    setLines(data.lines ?? []);
+    setClauses(Array.isArray(data.clauses) ? data.clauses : []);
+    setBuyer(data.buyer ?? emptyParty);
+    setSeller(data.seller ?? emptyParty);
+    setTaxIncluded(!!data.taxIncluded);
+    setTaxRate(typeof data.taxRate === "number" ? data.taxRate : 13);
+    setExtraFees(Array.isArray(data.extraFees) ? data.extraFees.map((f) => ({ ...f })) : []);
+    setExtraFeeAmountDraft({});
+    setSourceQuoteId(data.sourceQuoteId);
+    setLineTextDraft({});
+    setContractNoLocked(false);
+    const cust = getCustomers().find((c) => c.id === data.customerId);
+    setCustomerQuery(cust?.name ?? "");
+  }, []);
+
+  const loadFromQuote = useCallback((q: Quote) => {
+    const comp = getCompanies().find((c) => c.id === q.companyId);
+    const cust = getCustomers().find((c) => c.id === q.customerId);
+    setContractId(null);
+    setIsDraft(true);
+    setSuppressAutoNo(false);
+    setSigningDate(q.date);
+    setSigningPlace("");
+    setCompanyId(q.companyId);
+    setCustomerId(q.customerId);
+    setCustomerQuery(cust?.name ?? "");
+    setLines(quoteLinesToContractLines(q.lines));
+    setClauses(initialClausesWithDeliveryAddress(cust?.address ?? ""));
+    setBuyer(cust ? partyFromCustomer(cust) : emptyParty);
+    setSeller(comp ? partyFromCompany(comp) : emptyParty);
+    setSourceQuoteId(q.id);
+    setTaxIncluded(!!q.taxIncluded);
+    setTaxRate(typeof q.taxRate === "number" ? q.taxRate : 13);
+    setExtraFees(Array.isArray(q.extraFees) ? q.extraFees.map((f) => ({ ...f })) : []);
+    setExtraFeeAmountDraft({});
+    setLineTextDraft({});
+    setContractNoLocked(false);
+    const ymd = dateToYmdCompact(q.date);
+    setContractNo(peekNextContractNo(ymd));
+    setPickQuoteOpen(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      let shareEnc: string | null = shareParam;
+      if (shareEnc) {
+        try {
+          shareEnc = decodeURIComponent(shareEnc);
+        } catch {
+          /* noop */
+        }
+      }
+      if (!shareEnc && typeof window !== "undefined") {
+        const h = window.location.hash;
+        if (h.startsWith("#share=")) {
+          shareEnc = h.slice(7);
+          try {
+            shareEnc = decodeURIComponent(shareEnc);
+          } catch {
+            /* noop */
+          }
+        }
+      }
+
+      if (contractIdParam) {
+        const c = getContracts().find((x) => x.id === contractIdParam);
+        if (c && !cancelled) {
+          setContractId(c.id);
+          setIsDraft(false);
+          setSuppressAutoNo(false);
+          setContractNo(c.contractNo);
+          setSigningDate(c.signingDate);
+          setSigningPlace(c.signingPlace);
+          setCompanyId(c.companyId);
+          setCustomerId(c.customerId);
+          setCustomerQuery("");
+          setLines(c.lines);
+          setClauses(c.clauses);
+          setBuyer(c.buyer);
+          setSeller(c.seller);
+          setTaxIncluded(!!c.taxIncluded);
+          setTaxRate(typeof c.taxRate === "number" ? c.taxRate : 13);
+          setExtraFees(Array.isArray(c.extraFees) ? c.extraFees.map((f) => ({ ...f })) : []);
+          setExtraFeeAmountDraft({});
+          setSourceQuoteId(c.sourceQuoteId);
+          setLineTextDraft({});
+          setContractNoLocked(false);
+        }
+        return;
+      }
+
+      if (fromQuoteParam) {
+        const q = getQuotes().find((x) => x.id === fromQuoteParam);
+        if (q && !cancelled) loadFromQuote(q);
+        return;
+      }
+
+      if (shareEnc) {
+        const parsed = await decodeSharePayload(shareEnc);
+        if (!cancelled && parsed && typeof parsed === "object") {
+          const raw = parsed as Record<string, unknown>;
+          if (raw.type === "contract" || typeof raw.contractNo === "string") {
+            const data: ContractSharePayload = {
+              type: "contract",
+              contractNo: String(raw.contractNo ?? ""),
+              signingDate: String(raw.signingDate ?? todayIso()),
+              signingPlace: String(raw.signingPlace ?? ""),
+              companyId: String(raw.companyId ?? ""),
+              customerId: String(raw.customerId ?? ""),
+              lines: Array.isArray(raw.lines) ? (raw.lines as ContractLine[]) : [],
+              clauses: Array.isArray(raw.clauses) ? (raw.clauses as string[]) : [],
+              buyer: (raw.buyer as ContractPartySnapshot) ?? emptyParty,
+              seller: (raw.seller as ContractPartySnapshot) ?? emptyParty,
+              taxIncluded: typeof raw.taxIncluded === "boolean" ? raw.taxIncluded : false,
+              taxRate: typeof raw.taxRate === "number" ? raw.taxRate : 13,
+              extraFees: Array.isArray(raw.extraFees) ? (raw.extraFees as QuoteExtraFee[]) : [],
+              sourceQuoteId: typeof raw.sourceQuoteId === "string" ? raw.sourceQuoteId : undefined,
+            };
+            applyImportedContract(data);
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+            }
+            return;
+          }
+        }
+      }
+
+      if (cancelled) return;
+      const comps = getCompanies();
+      const def = comps.find((c) => c.isDefault) ?? comps[0];
+      setContractId(null);
+      setIsDraft(true);
+      setSuppressAutoNo(false);
+      setSigningDate(todayIso());
+      setSigningPlace("");
+      setCompanyId(def?.id ?? "");
+      setCustomerId("");
+      setCustomerQuery("");
+      setLines([]);
+      setClauses(initialClausesWithDeliveryAddress(""));
+      setBuyer(emptyParty);
+      setSeller(def ? partyFromCompany(def) : emptyParty);
+      setTaxIncluded(false);
+      setTaxRate(13);
+      setExtraFees([]);
+      setExtraFeeAmountDraft({});
+      setSourceQuoteId(undefined);
+      setLineTextDraft({});
+      setContractNoLocked(false);
+      const d = dateToYmdCompact(todayIso());
+      setContractNo(peekNextContractNo(d));
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [contractIdParam, fromQuoteParam, shareParam, applyImportedContract, loadFromQuote]);
+
+  useEffect(() => {
+    if (!isDraft || suppressAutoNo || contractNoLocked) return;
+    setContractNo(peekNextContractNo(ymdCompact));
+  }, [isDraft, suppressAutoNo, contractNoLocked, ymdCompact]);
+
+  function syncPartiesFromMasters() {
+    if (customer) setBuyer(partyFromCustomer(customer));
+    if (company) setSeller(partyFromCompany(company));
+  }
+
+  function updateLine(id: string, patch: Partial<ContractLine>) {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l;
+        const price = patch.price ?? l.price;
+        const qty = patch.qty ?? l.qty;
+        const amount = calcLineAmount(price, qty);
+        return { ...l, ...patch, price, qty, amount };
+      })
+    );
+  }
+
+  function setLinePriceInput(id: string, raw: string) {
+    if (raw !== "" && !/^-?\d*\.?\d*$/.test(raw)) return;
+    setLineTextDraft((prev) => ({ ...prev, [id]: { ...prev[id], price: raw } }));
+    const n = raw === "" || raw === "." || raw === "-" ? 0 : Number.parseFloat(raw);
+    updateLine(id, { price: Number.isFinite(n) ? n : 0 });
+  }
+
+  function setLineQtyInput(id: string, raw: string) {
+    if (raw !== "" && !/^\d*\.?\d*$/.test(raw)) return;
+    setLineTextDraft((prev) => ({ ...prev, [id]: { ...prev[id], qty: raw } }));
+    const n = raw === "" || raw === "." ? 0 : Number.parseFloat(raw);
+    updateLine(id, { qty: Number.isFinite(n) ? n : 0 });
+  }
+
+  function removeLine(id: string) {
+    setLines((prev) => prev.filter((l) => l.id !== id));
+    setLineTextDraft((d) => {
+      const n = { ...d };
+      delete n[id];
+      return n;
+    });
+  }
+
+  function addProductLine(p: Product) {
+    const price = p.price;
+    const qty = 1;
+    const line: ContractLine = {
+      id: newLineId(),
+      productCode: p.code,
+      name: p.name,
+      modelSpec: [p.model, p.spec].filter(Boolean).join(" / ") || "—",
+      unit: p.unit,
+      qty,
+      price,
+      amount: calcLineAmount(price, qty),
+      remark: "",
+    };
+    setLines((prev) => [...prev, line]);
+    setPickerOpen(false);
+    setProductSearch("");
+  }
+
+  function addClause() {
+    setClauses((prev) => [...prev, ""]);
+  }
+
+  function updateClause(i: number, text: string) {
+    setClauses((prev) => prev.map((c, j) => (j === i ? text : c)));
+  }
+
+  function removeClause(i: number) {
+    setClauses((prev) => prev.filter((_, j) => j !== i));
+  }
+
+  function addExtraFee() {
+    setExtraFees((prev) => [...prev, { id: newLineId(), name: "其他费用", amount: 0 }]);
+  }
+
+  function updateExtraFee(id: string, patch: Partial<QuoteExtraFee>) {
+    setExtraFees((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  function removeExtraFee(id: string) {
+    setExtraFees((prev) => prev.filter((f) => f.id !== id));
+    setExtraFeeAmountDraft((d) => {
+      const n = { ...d };
+      delete n[id];
+      return n;
+    });
+  }
+
+  function setExtraFeeAmountInput(id: string, raw: string) {
+    if (raw !== "" && !/^-?\d*\.?\d*$/.test(raw)) return;
+    setExtraFeeAmountDraft((prev) => ({ ...prev, [id]: raw }));
+    const n = raw === "" || raw === "." || raw === "-" ? 0 : Number.parseFloat(raw);
+    updateExtraFee(id, { amount: Number.isFinite(n) ? n : 0 });
+  }
+
+  function saveContract() {
+    if (!companyId) {
+      alert("请选择供方（我司）");
+      return;
+    }
+    if (!customerId) {
+      alert("请选择需方客户");
+      return;
+    }
+    if (lines.length === 0) {
+      alert("请至少添加一条标的明细");
+      return;
+    }
+    const now = new Date().toISOString();
+    const all = getContracts();
+    let finalNo = contractNo.trim();
+    let id = contractId;
+
+    if (isDraft || !contractId) {
+      const ymd = dateToYmdCompact(signingDate);
+      finalNo = finalNo || commitNextContractNo(ymd);
+      id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `ct-${Date.now()}`;
+      const created: Contract = {
+        id: id!,
+        contractNo: finalNo,
+        signingDate,
+        signingPlace: signingPlace.trim(),
+        companyId,
+        customerId,
+        lines,
+        clauses,
+        buyer,
+        seller,
+        taxIncluded,
+        taxRate,
+        extraFees: extraFees.map((f) => ({ ...f })),
+        sourceQuoteId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setContracts([...all, created]);
+      setContractId(id);
+      setContractNo(finalNo);
+      setIsDraft(false);
+    } else {
+      const next = all.map((c) =>
+        c.id === contractId
+          ? {
+              ...c,
+              contractNo: contractNo.trim(),
+              signingDate,
+              signingPlace: signingPlace.trim(),
+              companyId,
+              customerId,
+              lines,
+              clauses,
+              buyer,
+              seller,
+              taxIncluded,
+              taxRate,
+              extraFees: extraFees.map((f) => ({ ...f })),
+              sourceQuoteId,
+              updatedAt: now,
+            }
+          : c
+      );
+      setContracts(next);
+    }
+    refreshStores();
+    alert("合同已保存到本地");
+  }
+
+  async function exportImage() {
+    const el = document.getElementById("contract-print");
+    if (!el) return;
+    let canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1280,
+      windowHeight: Math.max(el.scrollHeight, 1600),
+      onclone: (clonedDoc) =>
+        contractHtml2canvasOnClone(clonedDoc, {
+          hasClausesContent: clausesHasContent(clauses),
+        }),
+    });
+    if (!exportInColor) {
+      canvas = canvasGrayscaleForExport(canvas);
+    }
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png", 1.0);
+    a.download = `${contractNo || "contract"}.png`;
+    a.click();
+  }
+
+  async function exportPdf() {
+    const el = document.getElementById("contract-print");
+    if (!el) return;
+    let canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1280,
+      windowHeight: Math.max(el.scrollHeight, 1600),
+      onclone: (clonedDoc) =>
+        contractHtml2canvasOnClone(clonedDoc, {
+          hasClausesContent: clausesHasContent(clauses),
+        }),
+    });
+    if (!exportInColor) {
+      canvas = canvasGrayscaleForExport(canvas);
+    }
+    const img = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let y = 0;
+    let remaining = imgH;
+    pdf.addImage(img, "PNG", 0, y, imgW, imgH);
+    remaining -= pageH;
+    while (remaining > 0) {
+      y -= pageH;
+      pdf.addPage();
+      pdf.addImage(img, "PNG", 0, y, imgW, imgH);
+      remaining -= pageH;
+    }
+    pdf.save(`${contractNo || "contract"}.pdf`);
+  }
+
+  async function openShareModal() {
+    if (!companyId) {
+      alert("请先选择供方");
+      return;
+    }
+    setShareOpen(true);
+    setShareLoading(true);
+    setShareError("");
+    setShareUrl("");
+    setShareQr("");
+    try {
+      const payload: ContractSharePayload = {
+        type: "contract",
+        contractNo,
+        signingDate,
+        signingPlace,
+        companyId,
+        customerId,
+        lines,
+        clauses,
+        buyer,
+        seller,
+        taxIncluded,
+        taxRate,
+        extraFees: extraFees.map((f) => ({ ...f })),
+        sourceQuoteId,
+      };
+      const enc = await encodeSharePayload(payload);
+      const url = `${window.location.origin}/contract/new?share=${encodeURIComponent(enc)}`;
+      setShareUrl(url);
+      setShareQr(await QRCode.toDataURL(url, { margin: 1, width: 320 }));
+    } catch (e) {
+      setShareError(e instanceof Error ? e.message : "生成失败");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  function closeShareModal() {
+    setShareOpen(false);
+  }
+
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    alert("已复制链接");
+  }
+
+  function downloadShareQr() {
+    if (!shareQr) return;
+    const a = document.createElement("a");
+    a.href = shareQr;
+    a.download = `${contractNo || "contract"}-share-qr.png`;
+    a.click();
+  }
+
+  function saveQuickProduct() {
+    if (!quickProduct.name.trim()) {
+      alert("请填写商品名称");
+      return;
+    }
+    const rows = getProducts();
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `p-${Date.now()}`;
+    const p: Product = {
+      id,
+      ...quickProduct,
+      code: quickProduct.code.trim() || newProductCode(rows),
+    };
+    setProducts([...rows, p]);
+    setProductsState([...rows, p]);
+    addProductLine(p);
+    setQuickProductOpen(false);
+    setQuickProduct(emptyQuickProduct);
+  }
+
+  const partyField = (
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    className = ""
+  ) => (
+    <div className={`flex flex-wrap items-center gap-x-1 text-sm leading-normal text-slate-900 ${className}`}>
+      <span className="shrink-0">{label}：</span>
+      <input
+        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm leading-normal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+
+  return (
+    <div className="mx-auto min-h-screen max-w-5xl px-4 py-6">
+      <PageHeader
+        title="新建合同"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/contract">
+              <TextButton variant="secondary">查询合同</TextButton>
+            </Link>
+            <Link href="/">
+              <TextButton variant="secondary">首页</TextButton>
+            </Link>
+          </div>
+        }
+      />
+
+      <div className="quote-no-print mb-3 flex flex-wrap gap-2">
+        <TextButton variant="secondary" onClick={() => setPickQuoteOpen(true)}>
+          从报价生成…
+        </TextButton>
+        <TextButton variant="secondary" onClick={syncPartiesFromMasters}>
+          从客户/我司同步签章信息
+        </TextButton>
+      </div>
+
+      <div
+        id="contract-print"
+        className="quote-document mx-auto max-w-[210mm] rounded-lg border border-slate-300 bg-white p-6 shadow-sm sm:p-8"
+      >
+        <h2 className="mb-6 text-center text-2xl font-bold tracking-widest text-slate-900">销售合同</h2>
+
+        <div className="mb-4 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 text-sm">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="shrink-0 font-medium text-slate-700">需方：</span>
+              <span className="text-slate-900">{customer?.name || buyer.name || "—"}</span>
+            </div>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="shrink-0 font-medium text-slate-700">供方：</span>
+              <span className="text-slate-900">{company?.name || seller.name || "—"}</span>
+            </div>
+          </div>
+          <div className="space-y-2 text-sm sm:text-right">
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <span className="text-slate-600">合同编号</span>
+              <input
+                className="min-w-[10rem] rounded border border-slate-300 px-2 py-1 text-sm"
+                value={contractNo}
+                onChange={(e) => {
+                  setContractNoLocked(true);
+                  setContractNo(e.target.value);
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <span className="text-slate-600">签订时间</span>
+              <input
+                type="date"
+                className="rounded border border-slate-300 px-2 py-1 text-sm"
+                value={signingDate}
+                onChange={(e) => {
+                  setSuppressAutoNo(false);
+                  setContractNoLocked(false);
+                  setSigningDate(e.target.value);
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <span className="text-slate-600">签订地点</span>
+              <input
+                className="min-w-[10rem] rounded border border-slate-300 px-2 py-1 text-sm"
+                value={signingPlace}
+                onChange={(e) => setSigningPlace(e.target.value)}
+                placeholder="可选填"
+              />
+            </div>
+          </div>
+        </div>
+
+        <p className="mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
+
+        <p className="mb-2 text-sm font-semibold text-slate-900">
+          一、合同标的（产品名称、型号（规格）、单位、数量、单价、金额）
+        </p>
+
+        <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-left text-sm">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border border-slate-800 px-1 py-2 font-medium">产品编号 NO</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">产品名称</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">型号/规格</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">单位</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">数量</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">单价</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">金额</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">备注</th>
+                <th className="quote-no-print border border-slate-800 px-1 py-2 font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l) => (
+                <tr key={l.id}>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      className="w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={l.productCode}
+                      onChange={(e) => updateLine(l.id, { productCode: e.target.value })}
+                    />
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      className="w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={l.name}
+                      onChange={(e) => updateLine(l.id, { name: e.target.value })}
+                    />
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      className="w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={l.modelSpec}
+                      onChange={(e) => updateLine(l.id, { modelSpec: e.target.value })}
+                    />
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      className="w-12 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={l.unit}
+                      onChange={(e) => updateLine(l.id, { unit: e.target.value })}
+                    />
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-16 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={displayLineQty(l, lineTextDraft)}
+                      onChange={(e) => setLineQtyInput(l.id, e.target.value)}
+                    />
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-20 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={displayLinePrice(l, lineTextDraft)}
+                      onChange={(e) => setLinePriceInput(l.id, e.target.value)}
+                    />
+                  </td>
+                  <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top">
+                    {formatCurrency(l.amount)}
+                  </td>
+                  <td className="border border-slate-800 px-1 py-1 align-top">
+                    <input
+                      className="w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      value={l.remark}
+                      onChange={(e) => updateLine(l.id, { remark: e.target.value })}
+                    />
+                  </td>
+                  <td className="quote-no-print border border-slate-800 px-1 py-1 align-top">
+                    <TextButton variant="ghost" className="!px-0 text-red-700" onClick={() => removeLine(l.id)}>
+                      删除
+                    </TextButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="quote-print-lines-mobile space-y-3 md:hidden">
+          {lines.map((l) => (
+            <div key={l.id} className="rounded border border-slate-300 p-3 text-sm">
+              <div className="font-medium">{l.name}</div>
+              <div className="mt-1 text-xs text-slate-600">
+                {l.productCode} · {l.modelSpec}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-xs">
+                  数量
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className="mt-0.5 w-full rounded border px-2 py-1"
+                    value={displayLineQty(l, lineTextDraft)}
+                    onChange={(e) => setLineQtyInput(l.id, e.target.value)}
+                  />
+                </label>
+                <label className="text-xs">
+                  单价
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className="mt-0.5 w-full rounded border px-2 py-1"
+                    value={displayLinePrice(l, lineTextDraft)}
+                    onChange={(e) => setLinePriceInput(l.id, e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="mt-1 font-medium">金额 {formatCurrency(l.amount)}</div>
+              <TextButton variant="ghost" className="quote-no-print mt-2 !px-0 text-red-700" onClick={() => removeLine(l.id)}>
+                删除
+              </TextButton>
+            </div>
+          ))}
+        </div>
+
+        <div className="quote-no-print mt-3 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:mt-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-medium text-slate-600">供方（我司）</label>
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                value={companyId}
+                onChange={(e) => {
+                  setSuppressAutoNo(false);
+                  setContractNoLocked(false);
+                  setCompanyId(e.target.value);
+                  const c = getCompanies().find((x) => x.id === e.target.value);
+                  if (c) setSeller(partyFromCompany(c));
+                }}
+              >
+                <option value="">请选择</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.abbr})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <label className="text-xs font-medium text-slate-600">需方（客户）</label>
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="搜索客户"
+                value={customerQuery}
+                onFocus={() => setShowCustDrop(true)}
+                onChange={(e) => {
+                  setCustomerQuery(e.target.value);
+                  setShowCustDrop(true);
+                }}
+              />
+              {showCustDrop && custFiltered.length > 0 ? (
+                <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-slate-200 bg-white shadow-md">
+                  {custFiltered.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      onClick={() => {
+                        setCustomerId(c.id);
+                        setCustomerQuery(c.name);
+                        setBuyer(partyFromCustomer(c));
+                        setShowCustDrop(false);
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <TextButton variant="primary" onClick={() => setPickerOpen(true)}>
+              添加商品行
+            </TextButton>
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-slate-800 pt-4 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-slate-800">
+              <input
+                type="checkbox"
+                checked={taxIncluded}
+                onChange={(e) => setTaxIncluded(e.target.checked)}
+              />
+              含税
+            </label>
+            {taxIncluded ? (
+              <label className="flex items-center gap-2 text-slate-800">
+                税率（%）
+                <input
+                  type="number"
+                  step="0.01"
+                  className="min-h-9 w-24 rounded border border-slate-800 px-2 py-1.5 leading-normal"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(Number.parseFloat(e.target.value) || 0)}
+                />
+              </label>
+            ) : null}
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-800">其他费用</span>
+              <TextButton variant="secondary" className="quote-no-print" onClick={addExtraFee}>
+                添加费用行
+              </TextButton>
+            </div>
+            {extraFees.map((f) => (
+              <div key={f.id} className="flex flex-wrap items-center gap-2">
+                <input
+                  className="min-h-9 flex-1 rounded border border-slate-800 px-2 py-1.5 text-sm sm:max-w-xs"
+                  value={f.name}
+                  onChange={(e) => updateExtraFee(f.id, { name: e.target.value })}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  className="min-h-9 w-28 rounded border border-slate-800 px-2 py-1.5 text-sm"
+                  value={displayExtraFeeAmount(f, extraFeeAmountDraft)}
+                  onChange={(e) => setExtraFeeAmountInput(f.id, e.target.value)}
+                />
+                <TextButton
+                  variant="ghost"
+                  className="quote-no-print !px-0 text-red-700"
+                  onClick={() => removeExtraFee(f.id)}
+                >
+                  删除
+                </TextButton>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2 border-t border-slate-800 pt-3">
+            <div className="flex flex-wrap justify-between gap-2 text-slate-800">
+              <span>商品金额合计</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            {taxIncluded ? (
+              <div className="flex flex-wrap justify-between gap-2 text-slate-800">
+                <span>税额（税率 {taxRate}%）</span>
+                <span>{formatCurrency(taxAmt)}</span>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap justify-between gap-2 text-slate-800">
+              <span>其他费用合计</span>
+              <span>{formatCurrency(extraFeesSum)}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 border-t border-slate-800 pt-2 font-medium text-slate-900">
+              <span>合同总金额（大写）</span>
+              <span>{amountCn}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 font-semibold text-slate-900">
+              <span>合同总金额（小写）</span>
+              <span>{formatCurrency(grandTotal)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="contract-clauses-section" className="mt-8 border-t border-slate-200 pt-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">合同条款</h3>
+            <TextButton variant="secondary" className="quote-no-print shrink-0" onClick={addClause}>
+              添加条款
+            </TextButton>
+          </div>
+          {clauses.length === 0 ? (
+            <p className="quote-no-print text-sm text-slate-500">暂无条款</p>
+          ) : (
+            <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-slate-800">
+              {clauses.map((t, i) => (
+                <li key={i} className="pl-1">
+                  <div className="flex gap-2">
+                    <textarea
+                      rows={3}
+                      className="min-h-[4rem] flex-1 rounded border border-slate-300 px-3 py-2"
+                      value={t}
+                      onChange={(e) => updateClause(i, e.target.value)}
+                    />
+                    <TextButton variant="ghost" className="quote-no-print h-fit shrink-0 text-red-700" onClick={() => removeClause(i)}>
+                      删除
+                    </TextButton>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        <div className="mt-10 border-t-2 border-slate-800 pt-6">
+          <p className="mb-4 text-center text-sm font-semibold text-slate-900">以下为双方详细信息（签章页）</p>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="rounded border border-slate-300 p-4">
+              <p className="mb-3 text-sm font-bold text-slate-900">甲方（需方）</p>
+              <div className="grid gap-2">
+                {partyField("名称", buyer.name, (v) => setBuyer((b) => ({ ...b, name: v })))}
+                {partyField("地址", buyer.address, (v) => setBuyer((b) => ({ ...b, address: v })))}
+                {partyField("代理人", buyer.agent, (v) => setBuyer((b) => ({ ...b, agent: v })))}
+                {partyField("电话", buyer.phone, (v) => setBuyer((b) => ({ ...b, phone: v })))}
+                {partyField("开户行", buyer.bankName, (v) => setBuyer((b) => ({ ...b, bankName: v })))}
+                {partyField("账号", buyer.bankAccount, (v) => setBuyer((b) => ({ ...b, bankAccount: v })))}
+                {partyField("税号", buyer.taxId, (v) => setBuyer((b) => ({ ...b, taxId: v })))}
+              </div>
+            </div>
+            <div className="relative rounded border border-slate-300 p-4 pb-20 sm:pb-[4.5rem]">
+              <p className="mb-3 text-sm font-bold text-slate-900">乙方（供方）</p>
+              <div className="grid gap-2">
+                {partyField("名称", seller.name, (v) => setSeller((s) => ({ ...s, name: v })))}
+                {partyField("地址", seller.address, (v) => setSeller((s) => ({ ...s, address: v })))}
+                {partyField("代理人", seller.agent, (v) => setSeller((s) => ({ ...s, agent: v })))}
+                {partyField("电话", seller.phone, (v) => setSeller((s) => ({ ...s, phone: v })))}
+                {partyField("开户行", seller.bankName, (v) => setSeller((s) => ({ ...s, bankName: v })))}
+                {partyField("账号", seller.bankAccount, (v) => setSeller((s) => ({ ...s, bankAccount: v })))}
+                {partyField("税号", seller.taxId, (v) => setSeller((s) => ({ ...s, taxId: v })))}
+              </div>
+              {company?.sealImage ? (
+                <div className="pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={company.sealImage}
+                    alt="公章"
+                    className="contract-print-seal h-auto max-h-20 w-auto object-contain opacity-[0.92] sm:max-h-24"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={exportInColor} onChange={(e) => setExportInColor(e.target.checked)} />
+          导出为彩色（图片/PDF；不勾选为黑白）
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <TextButton variant="primary" onClick={saveContract}>
+            保存合同
+          </TextButton>
+          <TextButton variant="secondary" onClick={() => void openShareModal()}>
+            分享合同
+          </TextButton>
+          <TextButton variant="secondary" onClick={() => void exportImage()}>
+            生成图片
+          </TextButton>
+          <TextButton variant="secondary" onClick={() => void exportPdf()}>
+            生成PDF
+          </TextButton>
+        </div>
+      </div>
+
+      <Modal
+        open={pickQuoteOpen}
+        title="从报价生成合同"
+        onClose={() => setPickQuoteOpen(false)}
+        footer={
+          <TextButton variant="secondary" onClick={() => setPickQuoteOpen(false)}>
+            关闭
+          </TextButton>
+        }
+      >
+        <p className="mb-3 text-sm text-slate-600">
+          选择一条已保存的本地报价，将带入明细、客户、我司及默认合同条款（可再修改）。
+        </p>
+        <div className="max-h-72 space-y-1 overflow-y-auto">
+          {getQuotes()
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                className="w-full rounded border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                onClick={() => loadFromQuote(q)}
+              >
+                <span className="font-medium">{q.quoteNo}</span>
+                <span className="text-slate-500"> · {q.date} · </span>
+                <span>{getCustomers().find((c) => c.id === q.customerId)?.name ?? "—"}</span>
+              </button>
+            ))}
+        </div>
+        {getQuotes().length === 0 ? <p className="py-4 text-center text-sm text-slate-500">暂无本地报价</p> : null}
+      </Modal>
+
+      <Modal
+        open={shareOpen}
+        title="分享合同"
+        onClose={closeShareModal}
+        panelClassName="max-w-xl"
+        footer={
+          <>
+            <TextButton variant="secondary" onClick={closeShareModal}>
+              关闭
+            </TextButton>
+            <TextButton variant="primary" disabled={!shareUrl} onClick={() => void copyShareUrl()}>
+              复制链接
+            </TextButton>
+            <TextButton variant="secondary" disabled={!shareQr} onClick={downloadShareQr}>
+              下载二维码
+            </TextButton>
+          </>
+        }
+      >
+        {shareLoading ? <p className="text-center text-sm text-slate-600">正在生成…</p> : null}
+        {shareError ? <p className="text-sm text-red-600">{shareError}</p> : null}
+        {shareUrl && !shareError ? (
+          <div className="space-y-4 text-sm">
+            <p className="text-slate-600">将链接或二维码发给对方，打开后可继续编辑本合同草稿。</p>
+            <input
+              readOnly
+              className="w-full rounded border border-slate-300 bg-slate-50 px-2 py-2 font-mono text-xs"
+              value={shareUrl}
+              onFocus={(e) => e.target.select()}
+            />
+            {shareQr ? (
+              <div className="flex flex-col items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={shareQr} alt="" className="h-56 w-56 rounded border bg-white p-2" />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={pickerOpen}
+        title="选择商品"
+        onClose={() => setPickerOpen(false)}
+        footer={
+          <TextButton variant="secondary" onClick={() => setPickerOpen(false)}>
+            关闭
+          </TextButton>
+        }
+      >
+        <input
+          className="mb-3 w-full rounded border px-3 py-2 text-sm"
+          placeholder="搜索"
+          value={productSearch}
+          onChange={(e) => setProductSearch(e.target.value)}
+        />
+        <TextButton variant="secondary" className="mb-3" onClick={() => setQuickProductOpen(true)}>
+          快速登记商品
+        </TextButton>
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {productsFiltered.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="w-full rounded border px-2 py-2 text-left text-sm hover:bg-slate-50"
+              onClick={() => addProductLine(p)}
+            >
+              {p.name} · {p.code}
+            </button>
+          ))}
+        </div>
+      </Modal>
+
+      <Modal
+        open={quickProductOpen}
+        title="快速登记商品"
+        onClose={() => setQuickProductOpen(false)}
+        footer={
+          <>
+            <TextButton variant="secondary" onClick={() => setQuickProductOpen(false)}>
+              取消
+            </TextButton>
+            <TextButton variant="primary" onClick={saveQuickProduct}>
+              保存并加入合同
+            </TextButton>
+          </>
+        }
+      >
+        <div className="space-y-2 text-sm">
+          <input
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="名称"
+            value={quickProduct.name}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, name: e.target.value }))}
+          />
+          <input
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="编号"
+            value={quickProduct.code}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, code: e.target.value }))}
+          />
+          <input
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="型号"
+            value={quickProduct.model}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, model: e.target.value }))}
+          />
+          <input
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="规格"
+            value={quickProduct.spec}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, spec: e.target.value }))}
+          />
+          <input
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="单位"
+            value={quickProduct.unit}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, unit: e.target.value }))}
+          />
+          <input
+            type="number"
+            className="w-full rounded border px-2 py-1.5"
+            placeholder="单价"
+            value={quickProduct.price || ""}
+            onChange={(e) => setQuickProduct((s) => ({ ...s, price: Number.parseFloat(e.target.value) || 0 }))}
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+}
