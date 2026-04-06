@@ -1,11 +1,13 @@
+import nodemailer from "nodemailer";
+
 /**
- * 发送注册验证码。优先使用 Brevo（SMTP API），其次回退到 Resend；
+ * 发送注册验证码。优先使用 Brevo（SMTP API），其次回退到 SMTP，再回退到 Resend；
  * 开发环境未配置时仅在控制台打印验证码（并在 API 响应中带 debugCode 仅供本地联调）。
  */
 export async function sendVerificationEmail(
   to: string,
   code: string
-): Promise<{ ok: true; via: "brevo" | "resend" | "dev" } | { ok: false; error: string }> {
+): Promise<{ ok: true; via: "brevo" | "smtp" | "resend" | "dev" } | { ok: false; error: string }> {
   const html = `<p>您正在注册智序系统账号。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`;
 
   const brevoKey = process.env.BREVO_API_KEY?.trim();
@@ -37,6 +39,31 @@ export async function sendVerificationEmail(
     }
   }
 
+  const smtpHost = process.env.SMTP_HOST?.trim();
+  const smtpPort = Number(process.env.SMTP_PORT || "587");
+  const smtpUser = process.env.SMTP_USER?.trim();
+  const smtpPass = process.env.SMTP_PASS?.trim();
+  const smtpFrom = process.env.SMTP_FROM?.trim();
+  if (smtpHost && smtpPort > 0 && smtpUser && smtpPass && smtpFrom) {
+    try {
+      const transport = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+      await transport.sendMail({
+        from: smtpFrom,
+        to,
+        subject: "智序商业报价合同生成系统 — 注册验证码",
+        html,
+      });
+      return { ok: true, via: "smtp" };
+    } catch (e) {
+      console.warn(`[email] SMTP failed: ${e instanceof Error ? e.message : "unknown error"}`);
+    }
+  }
+
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_FROM?.trim() || "onboarding@resend.dev";
 
@@ -48,7 +75,7 @@ export async function sendVerificationEmail(
     return {
       ok: false,
       error:
-        "未配置可用邮件服务。请配置 BREVO_API_KEY+BREVO_FROM，或 RESEND_API_KEY+RESEND_FROM。",
+        "未配置可用邮件服务。请配置 BREVO_API_KEY+BREVO_FROM，或 SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM，或 RESEND_API_KEY+RESEND_FROM。",
     };
   }
 
