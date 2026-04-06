@@ -35,7 +35,7 @@ export function SubscriptionFeatureGate({ feature, children }: { feature: GatedF
       <BlockedLayout
         title={title}
         headline="请先注册并登录云端账号"
-        body="使用报价或合同相关能力前，需要注册账号以便订阅与激活。业务数据仍保存在本机浏览器，可随时在「设置」中导出。"
+        body="使用相关功能前，需要先注册并登录云端账号。"
         primary={
           <TextButton variant="primary" onClick={() => router.push("/register")}>
             去注册
@@ -55,13 +55,8 @@ export function SubscriptionFeatureGate({ feature, children }: { feature: GatedF
       <BlockedLayout
         title={title}
         headline="订阅未激活或已过期"
-        body="请在淘宝店铺购买激活码，并在「设置 → 个人信息」中粘贴兑换。订阅失效期间仍可登录并在「设置」导出本地历史数据，避免数据无法取出。"
+        body="请在淘宝店铺购买激活码，并完成兑换后再使用本功能。"
         primary={<TextButton variant="primary" onClick={() => openShop(ctx.purchaseShopUrl)}>打开淘宝店铺</TextButton>}
-        secondary={
-          <TextButton variant="secondary" onClick={() => router.push("/settings")}>
-            去设置兑换激活码
-          </TextButton>
-        }
         shopUrl={ctx.purchaseShopUrl}
       />
     );
@@ -77,13 +72,8 @@ export function SubscriptionFeatureGate({ feature, children }: { feature: GatedF
       <BlockedLayout
         title={title}
         headline="请升级套餐"
-        body={`${hint} 需购买包含所需模块的套餐后，在设置中兑换激活码即可解锁。数据仍在本地，可随时导出。`}
+        body={`${hint} 需购买包含所需模块的套餐并完成兑换后即可解锁。`}
         primary={<TextButton variant="primary" onClick={() => openShop(ctx.purchaseShopUrl)}>前往淘宝店铺升级</TextButton>}
-        secondary={
-          <TextButton variant="secondary" onClick={() => router.push("/settings")}>
-            查看订阅与激活码
-          </TextButton>
-        }
         shopUrl={ctx.purchaseShopUrl}
       />
     );
@@ -104,7 +94,7 @@ function BlockedLayout({
   headline: string;
   body: string;
   primary: ReactNode;
-  secondary: ReactNode;
+  secondary?: ReactNode;
   shopUrl?: string;
 }) {
   return (
@@ -125,15 +115,11 @@ function BlockedLayout({
         ) : null}
         <div className="mt-5 flex flex-wrap gap-2">
           {primary}
-          {secondary}
+          {secondary ?? null}
         </div>
         <p className="mt-4 text-xs text-amber-900/80">
           <Link href="/" className="underline-offset-2 hover:underline">
             返回首页
-          </Link>
-          {" · "}
-          <Link href="/settings" className="underline-offset-2 hover:underline">
-            设置（含数据导出）
           </Link>
         </p>
       </div>
