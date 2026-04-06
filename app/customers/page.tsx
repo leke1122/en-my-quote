@@ -1,5 +1,6 @@
 "use client";
 
+import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
@@ -25,6 +26,14 @@ const emptyForm: Omit<Customer, "id"> = {
 };
 
 export default function CustomersPage() {
+  return (
+    <SubscriptionFeatureGate feature="base">
+      <CustomersPageInner />
+    </SubscriptionFeatureGate>
+  );
+}
+
+function CustomersPageInner() {
   const [list, setList] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
