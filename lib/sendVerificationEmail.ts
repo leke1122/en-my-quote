@@ -40,11 +40,14 @@ export async function sendVerificationEmail(
   }
 
   const smtpHost = process.env.SMTP_HOST?.trim();
-  const smtpPort = Number(process.env.SMTP_PORT || "587");
+  const smtpPortRaw = process.env.SMTP_PORT?.trim();
+  const smtpPortParsed = smtpPortRaw ? Number(smtpPortRaw) : 587;
+  const smtpPort =
+    Number.isFinite(smtpPortParsed) && smtpPortParsed > 0 ? smtpPortParsed : 587;
   const smtpUser = process.env.SMTP_USER?.trim();
   const smtpPass = process.env.SMTP_PASS?.trim();
   const smtpFrom = process.env.SMTP_FROM?.trim();
-  if (smtpHost && smtpPort > 0 && smtpUser && smtpPass && smtpFrom) {
+  if (smtpHost && smtpUser && smtpPass && smtpFrom) {
     try {
       const transport = nodemailer.createTransport({
         host: smtpHost,
@@ -72,10 +75,15 @@ export async function sendVerificationEmail(
       console.info(`[email dev] 验证码 → ${to} : ${code}`);
       return { ok: true, via: "dev" };
     }
+    const miss: string[] = [];
+    if (!brevoKey || !brevoFrom) miss.push("BREVO_API_KEY+BREVO_FROM");
+    if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+      miss.push("SMTP_HOST+SMTP_USER+SMTP_PASS+SMTP_FROM（SMTP_PORT 可选，默认 587）");
+    }
+    if (!process.env.RESEND_API_KEY?.trim()) miss.push("RESEND_API_KEY+RESEND_FROM");
     return {
       ok: false,
-      error:
-        "未配置可用邮件服务。请配置 BREVO_API_KEY+BREVO_FROM，或 SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM，或 RESEND_API_KEY+RESEND_FROM。",
+      error: `未配置可用邮件服务（或 Brevo/SMTP 发送失败且未配置 Resend）。请在 Vercel Production 检查：${miss.join("；")}。保存变量后务必 Redeploy。`,
     };
   }
 
