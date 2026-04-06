@@ -35,6 +35,12 @@ export default function Home() {
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-10">
       <header className="mb-6 flex items-start justify-end gap-3 sm:mb-8">
+        <Link
+          href="/help"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          使用说明
+        </Link>
         <HomeAuthLinks />
       </header>
 
