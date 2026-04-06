@@ -10,6 +10,9 @@ export async function sendVerificationEmail(
 ): Promise<{ ok: true; via: "brevo" | "smtp" | "resend" | "dev" } | { ok: false; error: string }> {
   const html = `<p>您正在注册智序系统账号。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`;
 
+  let brevoFailHint: string | null = null;
+  let smtpFailHint: string | null = null;
+
   const brevoKey = process.env.BREVO_API_KEY?.trim();
   const brevoFrom = process.env.BREVO_FROM?.trim();
   if (brevoKey && brevoFrom) {
@@ -32,10 +35,11 @@ export async function sendVerificationEmail(
       if (res.ok) return { ok: true, via: "brevo" };
       // Brevo 配了但不可用，继续回退到 Resend。
       console.warn(`[email] Brevo failed (${res.status}): ${text.slice(0, 300)}`);
+      brevoFailHint = `HTTP ${res.status} ${text.slice(0, 180).replace(/\s+/g, " ")}`;
     } catch (e) {
-      console.warn(
-        `[email] Brevo exception: ${e instanceof Error ? e.message : "unknown error"}`
-      );
+      const msg = e instanceof Error ? e.message : "unknown error";
+      console.warn(`[email] Brevo exception: ${msg}`);
+      brevoFailHint = msg.slice(0, 180);
     }
   }
 
@@ -63,7 +67,9 @@ export async function sendVerificationEmail(
       });
       return { ok: true, via: "smtp" };
     } catch (e) {
-      console.warn(`[email] SMTP failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      const msg = e instanceof Error ? e.message : "unknown error";
+      console.warn(`[email] SMTP failed: ${msg}`);
+      smtpFailHint = msg.slice(0, 180);
     }
   }
 
@@ -74,6 +80,19 @@ export async function sendVerificationEmail(
     if (process.env.NODE_ENV === "development") {
       console.info(`[email dev] 验证码 → ${to} : ${code}`);
       return { ok: true, via: "dev" };
+    }
+    const brevoOk = !!(brevoKey && brevoFrom);
+    const smtpOk = !!(smtpHost && smtpUser && smtpPass && smtpFrom);
+    if (brevoOk && smtpOk && (brevoFailHint || smtpFailHint)) {
+      const parts = [
+        "Brevo（HTTP API）与 SMTP 均已配置，但两次发送都未成功。",
+        brevoFailHint ? `Brevo：${brevoFailHint}` : "Brevo：无响应详情",
+        smtpFailHint ? `SMTP：${smtpFailHint}` : "SMTP：无响应详情",
+        "请到 Vercel → 该部署 → Logs 搜索 [email] 查看完整返回。",
+        "常见原因：发件域名未在 Brevo 验证、API Key 与发件人不匹配、SMTP 登录名需用 Brevo 提供的完整邮箱而非别名。",
+        "也可配置 RESEND_API_KEY+RESEND_FROM 作为备用通道。",
+      ];
+      return { ok: false, error: parts.join(" ") };
     }
     const miss: string[] = [];
     if (!brevoKey || !brevoFrom) miss.push("BREVO_API_KEY+BREVO_FROM");
