@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import type { Subscription } from "@prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { parseRedeemCodes } from "@/lib/redeemCodes";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/sessionJwt";
@@ -10,6 +11,36 @@ function addDays(from: Date, days: number): Date {
   const d = new Date(from);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+/** 试用、已过期、或尚无订阅：从兑换日起算；有效期内续费：顺延结束日并保持原 validFrom */
+function computeRedeemWindow(
+  sub: Subscription | null,
+  now: Date,
+  reward: { lifetime: boolean; days: number }
+): { validFrom: Date; validUntil: Date | null } {
+  if (reward.lifetime) {
+    return { validFrom: now, validUntil: null };
+  }
+
+  const expiredOrNoEnd =
+    !sub?.validUntil || sub.validUntil.getTime() <= now.getTime();
+  const isTrial = !sub || sub.plan === "trial";
+  const startFresh = isTrial || expiredOrNoEnd;
+
+  if (startFresh) {
+    return {
+      validFrom: now,
+      validUntil: addDays(now, reward.days),
+    };
+  }
+
+  const base =
+    sub.validUntil && sub.validUntil.getTime() > now.getTime() ? sub.validUntil : now;
+  return {
+    validFrom: sub.validFrom ?? now,
+    validUntil: addDays(base, reward.days),
+  };
 }
 
 export async function POST(request: Request) {
@@ -59,19 +90,8 @@ export async function POST(request: Request) {
 
   const sub = user.subscription;
   const now = new Date();
-
-  let validUntil: Date | null;
-  let plan: string;
-
-  if (reward.lifetime) {
-    validUntil = null;
-    plan = reward.plan || "lifetime";
-  } else {
-    const base =
-      sub?.validUntil && sub.validUntil.getTime() > now.getTime() ? sub.validUntil : now;
-    validUntil = addDays(base, reward.days);
-    plan = reward.plan || "paid";
-  }
+  const plan = reward.plan || (reward.lifetime ? "lifetime" : "paid");
+  const { validFrom, validUntil } = computeRedeemWindow(sub, now, reward);
 
   if (sub) {
     await prisma.subscription.update({
@@ -79,6 +99,7 @@ export async function POST(request: Request) {
       data: {
         plan,
         status: "active",
+        validFrom,
         validUntil,
         provider: "redeem",
       },
@@ -89,6 +110,7 @@ export async function POST(request: Request) {
         userId: user.id,
         plan,
         status: "active",
+        validFrom,
         validUntil,
         provider: "redeem",
       },
@@ -106,6 +128,7 @@ export async function POST(request: Request) {
       ? {
           plan: updated.subscription.plan,
           status: updated.subscription.status,
+          validFrom: updated.subscription.validFrom?.toISOString() ?? null,
           validUntil: updated.subscription.validUntil?.toISOString() ?? null,
         }
       : null,

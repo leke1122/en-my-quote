@@ -4,15 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
+import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
-import { contractStoredGrandTotal } from "@/lib/contractTotals";
+import {
+  buildCsvUtf8BomBlob,
+  buildExcelHtmlTableBlob,
+  exportFilename,
+  triggerDownloadBlob,
+} from "@/lib/exportSpreadsheet";
 import { filterContractDetailRows, localContractsToDetailRows } from "@/lib/contractRecords";
 import { formatCurrency } from "@/lib/format";
 import { getCompanies, getContracts, getCustomers } from "@/lib/storage";
 import type { Contract, Customer } from "@/lib/types";
 
-export default function ContractListPage() {
+function ContractListContent() {
   const router = useRouter();
+  const subCtx = useSubscriptionAccess();
+  const cloudDataMode = subCtx.cloudAuthEnabled;
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [companies, setCompanies] = useState(getCompanies());
@@ -23,19 +32,16 @@ export default function ContractListPage() {
   const [productQ, setProductQ] = useState("");
   const [modelQ, setModelQ] = useState("");
   const [specQ, setSpecQ] = useState("");
-  const [source, setSource] = useState<"all" | "local">("all");
 
-  const [selectedContractId, setSelectedContractId] = useState("");
-
-  const refreshLocal = useCallback(() => {
+  const refreshList = useCallback(() => {
     setContracts(getContracts().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     setCustomers(getCustomers());
     setCompanies(getCompanies());
   }, []);
 
   useEffect(() => {
-    refreshLocal();
-  }, [refreshLocal]);
+    refreshList();
+  }, [refreshList]);
 
   const customerMap = useMemo(() => {
     const m = new Map<string, Customer>();
@@ -63,24 +69,73 @@ export default function ContractListPage() {
         productName: productQ,
         model: modelQ,
         spec: specQ,
-        source: source === "all" ? "all" : "local",
+        source: "all",
       }),
-    [localDetailRows, dateFrom, dateTo, customerQ, productQ, modelQ, specQ, source]
+    [localDetailRows, dateFrom, dateTo, customerQ, productQ, modelQ, specQ]
   );
 
-  const localContractsForSelect = useMemo(() => {
-    const ids = new Set<string>();
-    filteredRows.forEach((r) => ids.add(r.contractId));
-    return contracts.filter((c) => ids.has(c.id));
-  }, [filteredRows, contracts]);
+  function contractRowsForExport(): (string | number)[][] {
+    return filteredRows.map((r) => [
+      r.contractNo,
+      r.date,
+      r.customerName,
+      r.supplierName,
+      r.productName,
+      r.model,
+      r.spec,
+      r.unit,
+      r.qty,
+      r.price,
+      r.amount,
+    ]);
+  }
 
-  function loadSelectedContract() {
-    const id = selectedContractId || localContractsForSelect[0]?.id;
-    if (!id) {
-      alert("当前筛选结果中没有可打开的合同，请调整条件或先在本地保存合同。");
+  function exportContractCsv() {
+    if (filteredRows.length === 0) {
+      alert("当前没有可导出的明细，请调整筛选条件。");
       return;
     }
-    router.push(`/contract/new?id=${encodeURIComponent(id)}`);
+    const headers = [
+      "合同编号",
+      "签订日期",
+      "客户",
+      "供方",
+      "商品名称",
+      "型号",
+      "规格",
+      "单位",
+      "数量",
+      "单价",
+      "金额",
+    ];
+    triggerDownloadBlob(
+      buildCsvUtf8BomBlob(headers, contractRowsForExport()),
+      exportFilename("合同明细", "csv")
+    );
+  }
+
+  function exportContractXls() {
+    if (filteredRows.length === 0) {
+      alert("当前没有可导出的明细，请调整筛选条件。");
+      return;
+    }
+    const headers = [
+      "合同编号",
+      "签订日期",
+      "客户",
+      "供方",
+      "商品名称",
+      "型号",
+      "规格",
+      "单位",
+      "数量",
+      "单价",
+      "金额",
+    ];
+    triggerDownloadBlob(
+      buildExcelHtmlTableBlob(headers, contractRowsForExport()),
+      exportFilename("合同明细", "xls")
+    );
   }
 
   return (
@@ -89,8 +144,8 @@ export default function ContractListPage() {
         title="查询合同"
         actions={
           <div className="flex flex-wrap gap-2">
-            <TextButton variant="secondary" onClick={refreshLocal}>
-              刷新本地
+            <TextButton variant="secondary" onClick={refreshList}>
+              {cloudDataMode ? "刷新列表" : "刷新本地"}
             </TextButton>
             <Link href="/contract/new">
               <TextButton variant="primary">新建合同</TextButton>
@@ -100,18 +155,34 @@ export default function ContractListPage() {
       />
 
       <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-        <p className="mb-2 font-medium text-slate-800">数据来源</p>
-        <p>
-          <strong>本地</strong>
-          ：本机浏览器中已保存的销售合同，支持按明细筛选与整单打开编辑。合同数据不上传服务器（除非您另行使用云端账号功能）。
-        </p>
+        <p className="mb-2 font-medium text-slate-800">数据与安全说明</p>
+        {cloudDataMode ? (
+          <p className="leading-relaxed">
+            已启用服务端数据库，用于账号、订阅及业务数据的持久化。本页明细来自<strong>当前浏览器中已载入</strong>的合同标的行；在编辑器保存或通过云端同步更新后，请点击上方「刷新列表」查看最新数据。请始终通过{" "}
+            <strong>HTTPS</strong> 访问。可在「设置」导出 JSON 备份。
+          </p>
+        ) : (
+          <p className="leading-relaxed">
+            <strong>合同明细保存在本机浏览器</strong>。请通过 HTTPS 访问；建议定期在「设置」导出 JSON 备份。
+          </p>
+        )}
         <p className="mt-2 text-xs text-slate-500">
-          与「查询历史报价」一致：下列为<strong>标的明细行</strong>列表；同一合同的多条商品会显示为多行。
+          下方为<strong>当前筛选条件下</strong>的标的明细（同一合同多商品为多行），可导出 CSV 或 Excel（.xls）。在表格「操作」中可打开整单编辑。
         </p>
       </section>
 
       <section className="mb-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">组合筛选</h2>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-sm font-semibold text-slate-800">组合筛选</h2>
+          <div className="flex flex-wrap gap-2">
+            <TextButton variant="secondary" onClick={exportContractCsv}>
+              导出 CSV（当前明细）
+            </TextButton>
+            <TextButton variant="secondary" onClick={exportContractXls}>
+              导出 Excel .xls（当前明细）
+            </TextButton>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="block text-xs text-slate-600">签订日期起</label>
@@ -130,17 +201,6 @@ export default function ContractListPage() {
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
             />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-600">数据来源</label>
-            <select
-              className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-              value={source}
-              onChange={(e) => setSource(e.target.value as "all" | "local")}
-            >
-              <option value="all">全部（本地）</option>
-              <option value="local">仅本地</option>
-            </select>
           </div>
           <div>
             <label className="block text-xs text-slate-600">客户名称（包含）</label>
@@ -181,35 +241,10 @@ export default function ContractListPage() {
         </div>
       </section>
 
-      <section className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label className="block text-sm text-slate-600">按本地整单打开（当前筛选结果内）</label>
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 sm:max-w-xl"
-            value={selectedContractId}
-            onChange={(e) => setSelectedContractId(e.target.value)}
-          >
-            <option value="">请选择合同</option>
-            {localContractsForSelect.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.contractNo} · {c.signingDate} · {customerMap.get(c.customerId)?.name ?? c.buyer.name} ·{" "}
-                {formatCurrency(contractStoredGrandTotal(c))}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <TextButton variant="secondary" onClick={loadSelectedContract}>
-            加载到合同页
-          </TextButton>
-        </div>
-      </section>
-
       <div className="hidden overflow-x-auto rounded border border-slate-200 bg-white lg:block">
-        <table className="w-full min-w-[1100px] text-left text-sm">
+        <table className="w-full min-w-[1000px] text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="px-2 py-2 font-medium">来源</th>
               <th className="px-2 py-2 font-medium">合同编号</th>
               <th className="px-2 py-2 font-medium">签订日期</th>
               <th className="px-2 py-2 font-medium">需方</th>
@@ -230,7 +265,6 @@ export default function ContractListPage() {
                 key={`${r.contractNo}-${r.contractId}-${idx}`}
                 className="border-t border-slate-100"
               >
-                <td className="px-2 py-2">本地</td>
                 <td className="px-2 py-2">{r.contractNo}</td>
                 <td className="px-2 py-2">{r.date}</td>
                 <td className="px-2 py-2">{r.customerName}</td>
@@ -259,7 +293,7 @@ export default function ContractListPage() {
         </table>
         {filteredRows.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-slate-500">
-            无明细记录，请调整筛选或先在本地保存合同
+            无明细记录，请调整筛选或点击「{cloudDataMode ? "刷新列表" : "刷新本地"}」
           </p>
         ) : null}
       </div>
@@ -270,8 +304,7 @@ export default function ContractListPage() {
             key={`${r.contractNo}-${r.contractId}-${idx}`}
             className="rounded border border-slate-200 bg-white p-3 text-sm shadow-sm"
           >
-            <div className="flex justify-between text-slate-500">
-              <span>本地</span>
+            <div className="flex justify-end text-slate-500">
               <span>{r.date}</span>
             </div>
             <div className="font-medium text-slate-900">{r.contractNo}</div>
@@ -301,5 +334,13 @@ export default function ContractListPage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function ContractListPage() {
+  return (
+    <SubscriptionFeatureGate feature="contract">
+      <ContractListContent />
+    </SubscriptionFeatureGate>
   );
 }

@@ -4,10 +4,11 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 import { amountToChineseUppercase } from "@/lib/chineseAmount";
 import { CONTRACT_INTRO } from "@/lib/contractDefaults";
@@ -17,8 +18,11 @@ import {
   contractLinesSubtotal,
   contractTaxFromSubtotal,
 } from "@/lib/contractTotals";
+import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
+import { contractHtml2canvasOnClone } from "@/lib/contractPrintHtml2Canvas";
+import type { ContractSharePayload } from "@/lib/contractSharePayload";
 import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
-import { decodeSharePayload, encodeSharePayload } from "@/lib/share";
+import { encodeSharePayload } from "@/lib/share";
 import { formatCurrency } from "@/lib/format";
 import { partyFromCompany, partyFromCustomer } from "@/lib/partyFromMasters";
 import { initialClausesWithDeliveryAddress, quoteLinesToContractLines } from "@/lib/quoteToContract";
@@ -57,12 +61,6 @@ function newLineId(): string {
 
 function calcLineAmount(price: number, qty: number): number {
   return Math.round(price * qty * 100) / 100;
-}
-
-function formatSigningDateChinese(iso: string): string {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso;
-  return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
 }
 
 const emptyParty: ContractPartySnapshot = {
@@ -106,140 +104,8 @@ function displayExtraFeeAmount(f: QuoteExtraFee, draft: ExtraFeeAmountDraft): st
   return f.amount === 0 ? "" : String(f.amount);
 }
 
-interface ContractSharePayload {
-  type: "contract";
-  contractNo: string;
-  signingDate: string;
-  signingPlace: string;
-  companyId: string;
-  customerId: string;
-  lines: ContractLine[];
-  clauses: string[];
-  buyer: ContractPartySnapshot;
-  seller: ContractPartySnapshot;
-  taxIncluded?: boolean;
-  taxRate?: number;
-  extraFees?: QuoteExtraFee[];
-  sourceQuoteId?: string;
-}
-
 function clausesHasContent(clauses: string[]): boolean {
   return clauses.some((t) => t.trim().length > 0);
-}
-
-interface Html2CanvasCloneOpts {
-  hasClausesContent: boolean;
-}
-
-function contractHtml2canvasOnClone(clonedDoc: Document, opts: Html2CanvasCloneOpts) {
-  const root = clonedDoc.getElementById("contract-print");
-  if (!root) return;
-  const el = root as HTMLElement;
-  el.classList.add("quote-export-capture");
-  const exportFix = clonedDoc.createElement("style");
-  exportFix.textContent = `
-#contract-print.quote-export-capture {
-  max-width: none !important;
-  width: max-content !important;
-}
-#contract-print.quote-export-capture .quote-print-lines-wrap {
-  overflow: visible !important;
-  max-height: none !important;
-}
-#contract-print.quote-export-capture .quote-print-lines-desktop {
-  display: block !important;
-}
-#contract-print.quote-export-capture .quote-print-lines-mobile {
-  display: none !important;
-}
-#contract-print.quote-export-capture .quote-print-logo-cell {
-  height: auto !important;
-  max-height: 5.5rem !important;
-  width: 7rem !important;
-  align-items: flex-start !important;
-}
-#contract-print.quote-export-capture .quote-print-logo {
-  max-height: 5rem !important;
-  max-width: 7rem !important;
-  width: auto !important;
-  height: auto !important;
-  object-fit: contain !important;
-}
-#contract-print.quote-export-capture .contract-print-seal {
-  max-height: 5.5rem !important;
-  max-width: 38% !important;
-  width: auto !important;
-  height: auto !important;
-  object-fit: contain !important;
-}
-`.trim();
-  clonedDoc.head.appendChild(exportFix);
-
-  el.style.overflow = "visible";
-  el.style.maxHeight = "none";
-  el.style.height = "auto";
-  root.querySelectorAll(".quote-no-print").forEach((rm) => {
-    (rm as HTMLElement).remove();
-  });
-  if (!opts.hasClausesContent) {
-    clonedDoc.getElementById("contract-clauses-section")?.remove();
-  }
-  root.querySelectorAll("input").forEach((inp) => {
-    const input = inp as HTMLInputElement;
-    if (input.type === "hidden") return;
-    const wrap = clonedDoc.createElement("span");
-    wrap.className =
-      "inline-block min-h-[1.35em] whitespace-pre-wrap break-words align-middle leading-normal";
-    if (input.type === "date") {
-      wrap.textContent = input.value ? formatSigningDateChinese(input.value) : "—";
-    } else if (input.type === "checkbox") {
-      wrap.textContent = input.checked ? "是" : "否";
-    } else {
-      wrap.textContent = input.value || "—";
-    }
-    input.replaceWith(wrap);
-  });
-  root.querySelectorAll("select").forEach((sel) => {
-    const select = sel as HTMLSelectElement;
-    const span = clonedDoc.createElement("span");
-    span.className = "block min-h-[1.35em] whitespace-pre-wrap break-words leading-normal py-1";
-    const opt = select.options[select.selectedIndex];
-    span.textContent = opt ? opt.text : "—";
-    select.replaceWith(span);
-  });
-  root.querySelectorAll("textarea").forEach((ta) => {
-    const tx = ta as HTMLTextAreaElement;
-    const div = clonedDoc.createElement("div");
-    div.className = "whitespace-pre-wrap break-words text-sm leading-relaxed";
-    div.textContent = tx.value || "—";
-    tx.replaceWith(div);
-  });
-}
-
-function canvasGrayscaleForExport(src: HTMLCanvasElement): HTMLCanvasElement {
-  const w = src.width;
-  const h = src.height;
-  const dest = document.createElement("canvas");
-  dest.width = w;
-  dest.height = h;
-  const ctx = dest.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return src;
-  ctx.drawImage(src, 0, 0);
-  const imageData = ctx.getImageData(0, 0, w, h);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    const adj = Math.min(255, Math.max(0, (lum - 128) * 1.08 + 128));
-    const u = Math.round(adj);
-    data[i] = u;
-    data[i + 1] = u;
-    data[i + 2] = u;
-  }
-  ctx.putImageData(imageData, 0, 0);
-  return dest;
 }
 
 function newProductCode(existing: Product[]): string {
@@ -247,10 +113,13 @@ function newProductCode(existing: Product[]): string {
 }
 
 export function ContractEditor() {
+  const router = useRouter();
   const sp = useSearchParams();
+  const subCtx = useSubscriptionAccess();
   const contractIdParam = sp.get("id");
   const fromQuoteParam = sp.get("fromQuote");
   const shareParam = sp.get("share");
+  const allowQuoteBridge = !subCtx.cloudAuthEnabled || subCtx.canQuoteToContract;
 
   const [companies, setCompaniesState] = useState<Company[]>([]);
   const [customers, setCustomersState] = useState<Customer[]>([]);
@@ -341,30 +210,6 @@ export function ContractEditor() {
     );
   }, [products, productSearch]);
 
-  const applyImportedContract = useCallback((data: ContractSharePayload) => {
-    setContractId(null);
-    setIsDraft(true);
-    setSuppressAutoNo(true);
-    setContractNo(data.contractNo);
-    setSigningDate(data.signingDate);
-    setSigningPlace(data.signingPlace);
-    setCompanyId(data.companyId);
-    setCustomerId(data.customerId);
-    setLines(data.lines ?? []);
-    setClauses(Array.isArray(data.clauses) ? data.clauses : []);
-    setBuyer(data.buyer ?? emptyParty);
-    setSeller(data.seller ?? emptyParty);
-    setTaxIncluded(!!data.taxIncluded);
-    setTaxRate(typeof data.taxRate === "number" ? data.taxRate : 13);
-    setExtraFees(Array.isArray(data.extraFees) ? data.extraFees.map((f) => ({ ...f })) : []);
-    setExtraFeeAmountDraft({});
-    setSourceQuoteId(data.sourceQuoteId);
-    setLineTextDraft({});
-    setContractNoLocked(false);
-    const cust = getCustomers().find((c) => c.id === data.customerId);
-    setCustomerQuery(cust?.name ?? "");
-  }, []);
-
   const loadFromQuote = useCallback((q: Quote) => {
     const comp = getCompanies().find((c) => c.id === q.companyId);
     const cust = getCustomers().find((c) => c.id === q.customerId);
@@ -395,7 +240,7 @@ export function ContractEditor() {
   useEffect(() => {
     let cancelled = false;
 
-    const bootstrap = async () => {
+    const bootstrap = () => {
       let shareEnc: string | null = shareParam;
       if (shareEnc) {
         try {
@@ -444,39 +289,18 @@ export function ContractEditor() {
       }
 
       if (fromQuoteParam) {
+        if (subCtx.cloudAuthEnabled && !subCtx.canQuoteToContract) {
+          router.replace("/contract/new");
+          return;
+        }
         const q = getQuotes().find((x) => x.id === fromQuoteParam);
         if (q && !cancelled) loadFromQuote(q);
         return;
       }
 
-      if (shareEnc) {
-        const parsed = await decodeSharePayload(shareEnc);
-        if (!cancelled && parsed && typeof parsed === "object") {
-          const raw = parsed as Record<string, unknown>;
-          if (raw.type === "contract" || typeof raw.contractNo === "string") {
-            const data: ContractSharePayload = {
-              type: "contract",
-              contractNo: String(raw.contractNo ?? ""),
-              signingDate: String(raw.signingDate ?? todayIso()),
-              signingPlace: String(raw.signingPlace ?? ""),
-              companyId: String(raw.companyId ?? ""),
-              customerId: String(raw.customerId ?? ""),
-              lines: Array.isArray(raw.lines) ? (raw.lines as ContractLine[]) : [],
-              clauses: Array.isArray(raw.clauses) ? (raw.clauses as string[]) : [],
-              buyer: (raw.buyer as ContractPartySnapshot) ?? emptyParty,
-              seller: (raw.seller as ContractPartySnapshot) ?? emptyParty,
-              taxIncluded: typeof raw.taxIncluded === "boolean" ? raw.taxIncluded : false,
-              taxRate: typeof raw.taxRate === "number" ? raw.taxRate : 13,
-              extraFees: Array.isArray(raw.extraFees) ? (raw.extraFees as QuoteExtraFee[]) : [],
-              sourceQuoteId: typeof raw.sourceQuoteId === "string" ? raw.sourceQuoteId : undefined,
-            };
-            applyImportedContract(data);
-            if (typeof window !== "undefined") {
-              window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-            }
-            return;
-          }
-        }
+      if (shareEnc && !contractIdParam && !fromQuoteParam) {
+        router.replace(`/contract/preview?share=${encodeURIComponent(shareEnc)}`);
+        return;
       }
 
       if (cancelled) return;
@@ -509,7 +333,15 @@ export function ContractEditor() {
     return () => {
       cancelled = true;
     };
-  }, [contractIdParam, fromQuoteParam, shareParam, applyImportedContract, loadFromQuote]);
+  }, [
+    contractIdParam,
+    fromQuoteParam,
+    shareParam,
+    loadFromQuote,
+    router,
+    subCtx.cloudAuthEnabled,
+    subCtx.canQuoteToContract,
+  ]);
 
   useEffect(() => {
     if (!isDraft || suppressAutoNo || contractNoLocked) return;
@@ -777,9 +609,10 @@ export function ContractEditor() {
         taxRate,
         extraFees: extraFees.map((f) => ({ ...f })),
         sourceQuoteId,
+        sellerSealImage: company?.sealImage,
       };
       const enc = await encodeSharePayload(payload);
-      const url = `${window.location.origin}/contract/new?share=${encodeURIComponent(enc)}`;
+      const url = `${window.location.origin}/contract/preview?share=${encodeURIComponent(enc)}`;
       setShareUrl(url);
       setShareQr(await QRCode.toDataURL(url, { margin: 1, width: 320 }));
     } catch (e) {
@@ -861,10 +694,16 @@ export function ContractEditor() {
         }
       />
 
-      <div className="quote-no-print mb-3 flex flex-wrap gap-2">
-        <TextButton variant="secondary" onClick={() => setPickQuoteOpen(true)}>
-          从报价生成…
-        </TextButton>
+      <div className="quote-no-print mb-3 flex flex-wrap items-center gap-2">
+        {allowQuoteBridge ? (
+          <TextButton variant="secondary" onClick={() => setPickQuoteOpen(true)}>
+            从报价生成…
+          </TextButton>
+        ) : (
+          <p className="text-xs text-amber-800">
+            「从报价生成合同」需「报价+合同版」套餐，请至淘宝升级后在设置中兑换激活码。
+          </p>
+        )}
         <TextButton variant="secondary" onClick={syncPartiesFromMasters}>
           从客户/我司同步签章信息
         </TextButton>
@@ -1343,7 +1182,9 @@ export function ContractEditor() {
         {shareError ? <p className="text-sm text-red-600">{shareError}</p> : null}
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
-            <p className="text-slate-600">将链接或二维码发给对方，打开后可继续编辑本合同草稿。</p>
+            <p className="text-slate-600">
+              将链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。
+            </p>
             <input
               readOnly
               className="w-full rounded border border-slate-300 bg-slate-50 px-2 py-2 font-mono text-xs"

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { TextButton } from "@/components/TextButton";
 import { collectLocalDataBackup, downloadDataBackupJson } from "@/lib/dataBackup";
-import { isSubscriptionActive } from "@/lib/subscriptionLogic";
+import { isEntitlementActive } from "@/lib/subscriptionAccess";
+import { describePlan, formatDateYmdCn } from "@/lib/subscriptionPlanDisplay";
 
 type MeJson =
   | { ok: true; loggedIn: false; cloud?: boolean }
@@ -16,7 +17,9 @@ type MeJson =
       subscription: {
         plan: string;
         status: string;
+        validFrom: string | null;
         validUntil: string | null;
+        createdAt?: string;
       } | null;
     };
 
@@ -112,24 +115,28 @@ export function PersonalInfoSection() {
 
   const loggedIn = me && "loggedIn" in me && me.loggedIn && me.cloud;
   const sub = loggedIn && me.loggedIn ? me.subscription : null;
-  const active =
-    sub &&
-    isSubscriptionActive(
-      sub.validUntil ? new Date(sub.validUntil) : null,
-      sub.plan
-    );
+  const active = Boolean(sub && isEntitlementActive(sub));
+  const planMeta = sub ? describePlan(sub.plan) : null;
+  const periodStartIso = sub ? sub.validFrom ?? sub.createdAt ?? null : null;
 
   return (
     <section className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="mb-1 text-base font-semibold text-slate-900">个人信息</h2>
       <p className="mb-4 text-xs leading-relaxed text-slate-600">
-        云端账号用于订阅与激活；报价、合同等业务数据默认仍保存在本机浏览器。注册默认试用 {trialDays} 天。
+        {cloudEnabled ? (
+          <>
+            云端账号与订阅信息保存在<strong>服务端数据库</strong>；报价、合同等业务数据在当前浏览器中编辑与缓存。新用户注册后默认试用{" "}
+            {trialDays} 天全功能（以系统配置为准）。
+          </>
+        ) : (
+          <>当前部署未启用服务端数据库时，无云端账号与订阅；业务数据仅保存在本机浏览器。</>
+        )}
       </p>
 
       <div className="mb-4 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
-        <p className="text-xs font-medium text-slate-600">一键导出本地数据</p>
+        <p className="text-xs font-medium text-slate-600">一键导出业务数据</p>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-          导出当前浏览器中的商品、客户、报价、合同等为 JSON（不含 WPS 密钥）。完整选项见下方「数据导出与恢复」。
+          将当前浏览器中的商品、客户、报价、合同等打包为 JSON 下载，便于备份与归档。更多选项（如是否包含敏感配置字段）见下方「数据导出」。
         </p>
         <TextButton variant="secondary" className="mt-2" onClick={quickExport}>
           一键导出
@@ -153,16 +160,33 @@ export function PersonalInfoSection() {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 sm:px-4">
-            <p className="text-xs font-medium text-slate-500">订阅到期</p>
-            {sub ? (
+            <p className="text-xs font-medium text-slate-500">订阅与套餐</p>
+            {sub && planMeta ? (
               <>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
-                  {sub.plan === "lifetime" || !sub.validUntil
-                    ? "永久有效"
-                    : sub.validUntil.slice(0, 10)}
+                <p className="mt-2 text-lg font-semibold text-slate-900">{planMeta.displayName}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  包含功能：
+                  {planMeta.quote ? " 报价" : ""}
+                  {planMeta.quote && planMeta.contract ? " ·" : ""}
+                  {planMeta.contract ? " 合同" : ""}
+                  {!planMeta.quote && !planMeta.contract ? " —" : ""}
                 </p>
-                <p className="mt-2 text-xs text-slate-600">
-                  套餐：<span className="font-mono">{sub.plan}</span>
+                <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <span className="text-slate-600">开始日期</span>
+                    <span className="font-medium tabular-nums">{formatDateYmdCn(periodStartIso)}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap justify-between gap-2 border-t border-slate-200/80 pt-1">
+                    <span className="text-slate-600">结束日期</span>
+                    <span className="font-medium tabular-nums">
+                      {sub.plan === "lifetime" || !sub.validUntil
+                        ? "永久"
+                        : formatDateYmdCn(sub.validUntil)}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  内部标识：<span className="font-mono">{sub.plan}</span>
                   {" · "}
                   状态：
                   <span className={active ? "text-emerald-700" : "text-amber-800"}>
@@ -177,7 +201,11 @@ export function PersonalInfoSection() {
 
           <div>
             <label className="block text-xs font-medium text-slate-600">激活码</label>
-            <p className="mt-0.5 text-[11px] text-slate-500">在淘宝店铺购买后，将卡密粘贴于此兑换（以店铺说明为准）。</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              在淘宝购买激活码后粘贴于此。环境与淘宝商品中约定的套餐标识需一致（如{" "}
+              <span className="font-mono">quote_monthly</span> 报价月卡、
+              <span className="font-mono">quote_contract_monthly</span> 报价+合同月卡）。
+            </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm outline-none focus:border-slate-500 sm:max-w-md"

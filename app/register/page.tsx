@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { markPostLoginSubscriptionCheck } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 
 export default function RegisterPage() {
@@ -61,6 +62,7 @@ export default function RegisterPage() {
         return;
       }
       alert("注册成功，已自动登录");
+      markPostLoginSubscriptionCheck();
       router.push("/");
       router.refresh();
     } catch {

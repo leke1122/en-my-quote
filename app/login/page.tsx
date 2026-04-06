@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { markPostLoginSubscriptionCheck } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 
 export default function LoginPage() {
@@ -27,6 +28,7 @@ export default function LoginPage() {
         setMsg(j.error || "登录失败");
         return;
       }
+      markPostLoginSubscriptionCheck();
       router.push("/settings");
       router.refresh();
     } catch {
@@ -41,7 +43,16 @@ export default function LoginPage() {
       <h1 className="text-center text-xl font-semibold text-slate-900">登录</h1>
       <p className="mt-2 text-center text-sm text-slate-600">使用已注册的邮箱与密码登录云端账号（需配置数据库）。</p>
 
-      <div className="mt-8 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mt-4 flex justify-center">
+        <Link
+          href="/"
+          className="inline-flex w-full max-w-xs items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+        >
+          返回首页
+        </Link>
+      </div>
+
+      <div className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
           <label className="text-xs text-slate-600">邮箱</label>
           <input

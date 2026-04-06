@@ -4,8 +4,12 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const db = Boolean(process.env.DATABASE_URL?.trim());
   const jwt = Boolean(process.env.JWT_SECRET?.trim() && process.env.JWT_SECRET.length >= 16);
+  const shop =
+    process.env.PURCHASE_SHOP_URL?.trim() || "https://hcwnn1122.taobao.com";
+
   return NextResponse.json({
     cloudAuthEnabled: db && jwt,
     trialDays: Math.min(Math.max(Number(process.env.SUBSCRIPTION_TRIAL_DAYS) || 14, 1), 365),
+    purchaseShopUrl: shop,
   });
 }

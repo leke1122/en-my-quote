@@ -4,13 +4,17 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { TextButton } from "@/components/TextButton";
-import { decodeSharePayload, encodeSharePayload } from "@/lib/share";
+import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
 import { formatCurrency } from "@/lib/format";
+import type { QuoteSharePayload } from "@/lib/quoteSharePayload";
+import { quoteHtml2canvasOnClone } from "@/lib/quotePrintHtml2Canvas";
+import { quoteGrandTotal, quoteSubtotal, quoteTax } from "@/lib/quoteTotals";
+import { encodeSharePayload } from "@/lib/share";
 import { commitNextQuoteNo, dateToYmdCompact, peekNextQuoteNo } from "@/lib/quoteNumber";
 import {
   getCompanies,
@@ -54,27 +58,6 @@ function calcLineAmount(price: number, qty: number): number {
   return Math.round(price * qty * 100) / 100;
 }
 
-function quoteSubtotal(lines: QuoteLine[]): number {
-  return lines.reduce((s, l) => s + l.amount, 0);
-}
-
-function quoteTax(sub: number, taxIncluded: boolean, taxRate: number): number {
-  if (!taxIncluded) return 0;
-  return Math.round(sub * (taxRate / 100) * 100) / 100;
-}
-
-function quoteGrandTotal(
-  lines: QuoteLine[],
-  taxIncluded: boolean,
-  taxRate: number,
-  extraFees: QuoteExtraFee[]
-): number {
-  const sub = quoteSubtotal(lines);
-  const tax = quoteTax(sub, taxIncluded, taxRate);
-  const extra = extraFees.reduce((s, f) => s + f.amount, 0);
-  return sub + tax + extra;
-}
-
 const emptyQuickProduct: Omit<Product, "id"> = {
   code: "",
   name: "",
@@ -96,18 +79,6 @@ const emptyQuickCustomer: Omit<Customer, "id"> = {
   bankName: "",
   bankAccount: "",
 };
-
-interface SharePayload {
-  quoteNo: string;
-  date: string;
-  companyId: string;
-  customerId: string;
-  lines?: QuoteLine[];
-  taxIncluded: boolean;
-  taxRate: number;
-  extraFees?: QuoteExtraFee[];
-  terms?: string[];
-}
 
 type LineTextDraft = Record<string, { price?: string; qty?: string }>;
 
@@ -131,119 +102,6 @@ function displayExtraFeeAmount(f: QuoteExtraFee, draft: ExtraFeeAmountDraft): st
   return f.amount === 0 ? "" : String(f.amount);
 }
 
-interface Html2CanvasCloneOpts {
-  hasTermsContent: boolean;
-  hasExtraFees: boolean;
-}
-
-function html2canvasOnClone(clonedDoc: Document, opts: Html2CanvasCloneOpts) {
-  const root = clonedDoc.getElementById("quote-print");
-  if (!root) return;
-  const el = root as HTMLElement;
-  el.classList.add("quote-export-capture");
-  const exportFix = clonedDoc.createElement("style");
-  exportFix.textContent = `
-#quote-print.quote-export-capture {
-  max-width: none !important;
-  width: max-content !important;
-}
-#quote-print.quote-export-capture .quote-print-lines-wrap {
-  overflow: visible !important;
-  max-height: none !important;
-}
-#quote-print.quote-export-capture .quote-print-lines-desktop {
-  display: block !important;
-}
-#quote-print.quote-export-capture .quote-print-lines-mobile {
-  display: none !important;
-}
-#quote-print.quote-export-capture .quote-print-logo-cell {
-  height: auto !important;
-  max-height: 5.5rem !important;
-  width: 7rem !important;
-  align-items: flex-start !important;
-}
-#quote-print.quote-export-capture .quote-print-logo {
-  max-height: 5rem !important;
-  max-width: 7rem !important;
-  width: auto !important;
-  height: auto !important;
-  object-fit: contain !important;
-}
-`.trim();
-  clonedDoc.head.appendChild(exportFix);
-
-  el.style.overflow = "visible";
-  el.style.maxHeight = "none";
-  el.style.height = "auto";
-  root.querySelectorAll(".quote-no-print").forEach((rm) => {
-    (rm as HTMLElement).remove();
-  });
-  if (!opts.hasTermsContent) {
-    clonedDoc.getElementById("quote-terms-section")?.remove();
-  }
-  if (!opts.hasExtraFees) {
-    clonedDoc.getElementById("quote-export-extra-fees-fields")?.remove();
-    clonedDoc.getElementById("quote-export-extra-fees-total-row")?.remove();
-  }
-  root.querySelectorAll("input").forEach((inp) => {
-    const input = inp as HTMLInputElement;
-    if (input.type === "hidden") return;
-    const wrap = clonedDoc.createElement("span");
-    wrap.className = "inline-block min-h-[1.35em] whitespace-pre-wrap break-words align-middle leading-normal";
-    if (input.type === "date") {
-      wrap.textContent = input.value || "—";
-    } else if (input.type === "checkbox") {
-      wrap.textContent = input.checked ? "是" : "否";
-    } else {
-      wrap.textContent = input.value || "—";
-    }
-    input.replaceWith(wrap);
-  });
-  root.querySelectorAll("select").forEach((sel) => {
-    const select = sel as HTMLSelectElement;
-    const span = clonedDoc.createElement("span");
-    span.className = "block min-h-[1.35em] whitespace-pre-wrap break-words leading-normal py-1";
-    const opt = select.options[select.selectedIndex];
-    span.textContent = opt ? opt.text : "—";
-    select.replaceWith(span);
-  });
-  root.querySelectorAll("textarea").forEach((ta) => {
-    const tx = ta as HTMLTextAreaElement;
-    const div = clonedDoc.createElement("div");
-    div.className = "whitespace-pre-wrap break-words text-sm leading-relaxed";
-    div.textContent = tx.value || "—";
-    tx.replaceWith(div);
-  });
-}
-
-/** html2canvas 不绘制 DOM 的 CSS filter，需在得到位图后再做灰度处理 */
-function canvasGrayscaleForExport(src: HTMLCanvasElement): HTMLCanvasElement {
-  const w = src.width;
-  const h = src.height;
-  const dest = document.createElement("canvas");
-  dest.width = w;
-  dest.height = h;
-  const ctx = dest.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return src;
-  ctx.drawImage(src, 0, 0);
-  const imageData = ctx.getImageData(0, 0, w, h);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    const adj = Math.min(255, Math.max(0, (lum - 128) * 1.08 + 128));
-    const u = Math.round(adj);
-    data[i] = u;
-    data[i + 1] = u;
-    data[i + 2] = u;
-  }
-  ctx.putImageData(imageData, 0, 0);
-  return dest;
-}
-
 function termsHasContent(terms: string[]): boolean {
   return terms.some((t) => t.trim().length > 0);
 }
@@ -254,6 +112,7 @@ function quoteHasExtraFees(fees: QuoteExtraFee[]): boolean {
 
 export function QuoteEditor() {
   const sp = useSearchParams();
+  const router = useRouter();
   const quoteIdParam = sp.get("id");
   const shareParam = sp.get("share");
 
@@ -319,30 +178,10 @@ export function QuoteEditor() {
   const abbr = (company?.abbr ?? "NA").toUpperCase();
   const ymdCompact = dateToYmdCompact(date);
 
-  const applyImportedQuote = useCallback((data: SharePayload) => {
-    setQuoteId(null);
-    setIsDraft(true);
-    setSuppressAutoQuoteNo(true);
-    setQuoteNo(data.quoteNo);
-    setDate(data.date);
-    setCompanyId(data.companyId);
-    setCustomerId(data.customerId);
-    setLines(data.lines ?? []);
-    setTaxIncluded(!!data.taxIncluded);
-    setTaxRate(Number(data.taxRate) || 0);
-    setExtraFees(data.extraFees ?? []);
-    setTerms(Array.isArray(data.terms) ? data.terms : []);
-    setLineTextDraft({});
-    setExtraFeeAmountDraft({});
-    setQuoteNoLocked(false);
-    const cust = getCustomers().find((c) => c.id === data.customerId);
-    setCustomerQuery(cust?.name ?? "");
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
 
-    const bootstrap = async () => {
+    const bootstrap = () => {
       let shareEnc: string | null = shareParam;
       if (shareEnc) {
         try {
@@ -389,30 +228,8 @@ export function QuoteEditor() {
         }
       }
 
-      if (shareEnc) {
-        const parsed = await decodeSharePayload(shareEnc);
-        if (cancelled || !parsed || typeof parsed !== "object") return;
-        const raw = parsed as Record<string, unknown>;
-        if (typeof raw.quoteNo !== "string" || typeof raw.date !== "string") return;
-        const data: SharePayload = {
-          quoteNo: raw.quoteNo,
-          date: raw.date,
-          companyId: String(raw.companyId ?? ""),
-          customerId: String(raw.customerId ?? ""),
-          lines: Array.isArray(raw.lines) ? (raw.lines as QuoteLine[]) : [],
-          taxIncluded: !!raw.taxIncluded,
-          taxRate: Number(raw.taxRate) || 0,
-          extraFees: Array.isArray(raw.extraFees) ? (raw.extraFees as QuoteExtraFee[]) : [],
-          terms: Array.isArray(raw.terms) ? (raw.terms as string[]) : [],
-        };
-        applyImportedQuote(data);
-        if (typeof window !== "undefined") {
-          window.history.replaceState(
-            null,
-            "",
-            `${window.location.pathname}${window.location.search}`
-          );
-        }
+      if (shareEnc && !quoteIdParam) {
+        router.replace(`/quote/preview?share=${encodeURIComponent(shareEnc)}`);
         return;
       }
 
@@ -443,7 +260,7 @@ export function QuoteEditor() {
     return () => {
       cancelled = true;
     };
-  }, [quoteIdParam, shareParam, applyImportedQuote]);
+  }, [quoteIdParam, shareParam, router]);
 
   useEffect(() => {
     if (!isDraft || suppressAutoQuoteNo || quoteNoLocked) return;
@@ -663,7 +480,7 @@ export function QuoteEditor() {
       windowWidth: 1280,
       windowHeight: Math.max(el.scrollHeight, 1600),
       onclone: (clonedDoc) =>
-        html2canvasOnClone(clonedDoc, {
+        quoteHtml2canvasOnClone(clonedDoc, {
           hasTermsContent: termsHasContent(terms),
           hasExtraFees: quoteHasExtraFees(extraFees),
         }),
@@ -690,7 +507,7 @@ export function QuoteEditor() {
       windowWidth: 1280,
       windowHeight: Math.max(el.scrollHeight, 1600),
       onclone: (clonedDoc) =>
-        html2canvasOnClone(clonedDoc, {
+        quoteHtml2canvasOnClone(clonedDoc, {
           hasTermsContent: termsHasContent(terms),
           hasExtraFees: quoteHasExtraFees(extraFees),
         }),
@@ -728,11 +545,33 @@ export function QuoteEditor() {
     setShareUrl("");
     setShareQr("");
     try {
-      const payload: SharePayload = {
+      const payload: QuoteSharePayload = {
+        type: "quote",
         quoteNo,
         date,
         companyId,
         customerId,
+        companySnapshot: company
+          ? {
+              name: company.name,
+              contact: company.contact,
+              phone: company.phone,
+              address: company.address,
+              logo: company.logo,
+              taxId: company.taxId,
+              bankName: company.bankName,
+              bankCode: company.bankCode,
+              abbr: company.abbr,
+            }
+          : null,
+        customerSnapshot: customer
+          ? {
+              name: customer.name,
+              contact: customer.contact,
+              phone: customer.phone,
+              address: customer.address,
+            }
+          : null,
         lines,
         taxIncluded,
         taxRate,
@@ -741,10 +580,8 @@ export function QuoteEditor() {
       };
       const enc = await encodeSharePayload(payload);
       const base =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/quote/new`
-          : "";
-      const url = `${base}#share=${enc}`;
+        typeof window !== "undefined" ? `${window.location.origin}/quote/preview` : "";
+      const url = `${base}?share=${encodeURIComponent(enc)}`;
       if (url.length > 32000) {
         setShareError("报价数据过大，请减少明细或删除行内图片后重试，或使用导出 PDF/图片分享。");
         return;
@@ -1397,7 +1234,7 @@ export function QuoteEditor() {
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              将下方链接或二维码发给对方，在浏览器中打开即可查看并继续编辑本报价。为缩短链接，分享数据不含明细中的商品大图；需要带图请使用「生成图片」或「生成PDF」。
+              将下方链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为缩短链接，分享数据不含明细中的商品大图；需要带图请使用「生成图片」或「生成PDF」。
             </p>
             <div>
               <label className="block text-xs text-slate-500">分享链接</label>

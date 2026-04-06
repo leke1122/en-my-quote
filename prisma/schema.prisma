@@ -39,6 +39,8 @@ model Subscription {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan       String
   status     String
+  /// 当前套餐周期开始日（试用/首次激活/续费规则由服务端写入）
+  validFrom  DateTime? @map("valid_from")
   validUntil DateTime? @map("valid_until")
   provider   String    @default("manual")
   externalId String?   @map("external_id")

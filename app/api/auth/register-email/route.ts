@@ -63,6 +63,7 @@ export async function POST(request: Request) {
           create: {
             plan: "trial",
             status: "active",
+            validFrom: new Date(),
             validUntil: trialEndDate(trialDays),
             provider: "manual",
           },
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
         ? {
             plan: user.subscription.plan,
             status: user.subscription.status,
+            validFrom: user.subscription.validFrom?.toISOString() ?? null,
             validUntil: user.subscription.validUntil?.toISOString() ?? null,
           }
         : null,

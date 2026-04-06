@@ -1,20 +1,12 @@
 import Link from "next/link";
+import { HomeGatedNav } from "@/components/home/HomeGatedNav";
+import { HomePricingAndShop } from "@/components/home/HomePricingAndShop";
 import { HomeAuthLinks } from "@/components/HomeAuthLinks";
 
 const row1 = [
   { href: "/products", title: "商品信息", emoji: "📦" },
   { href: "/customers", title: "客户信息", emoji: "👥" },
   { href: "/company", title: "我司信息", emoji: "🏢" },
-] as const;
-
-const row2 = [
-  { href: "/quote/new", title: "新建报价", emoji: "📝" },
-  { href: "/quote", title: "查询历史报价", emoji: "📋" },
-] as const;
-
-const row3 = [
-  { href: "/contract/new", title: "新建合同", emoji: "📄" },
-  { href: "/contract", title: "查询合同", emoji: "📑" },
 ] as const;
 
 /**
@@ -24,7 +16,6 @@ const row3 = [
  * 因此下面每个标签的宽度 = 上面两个标签宽度之和，左右与整行对齐。
  */
 const gridRow1 = "grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 sm:items-stretch";
-const gridRow23 = "grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 sm:items-stretch";
 
 const cardClass =
   "flex min-h-[3.25rem] items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:min-h-[3.5rem] sm:gap-4 sm:p-5";
@@ -42,7 +33,7 @@ function NavCard({ href, title, emoji }: { href: string; title: string; emoji: s
 
 export default function Home() {
   return (
-    <div className="mx-auto min-h-screen max-w-4xl px-4 py-6 sm:py-10">
+    <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-10">
       <header className="mb-6 flex items-start justify-end gap-3 sm:mb-8">
         <HomeAuthLinks />
       </header>
@@ -62,17 +53,10 @@ export default function Home() {
             <NavCard key={c.href} href={c.href} title={c.title} emoji={c.emoji} />
           ))}
         </nav>
-        <nav className={gridRow23} aria-label="报价">
-          {row2.map((c) => (
-            <NavCard key={c.href} href={c.href} title={c.title} emoji={c.emoji} />
-          ))}
-        </nav>
-        <nav className={gridRow23} aria-label="合同">
-          {row3.map((c) => (
-            <NavCard key={c.href} href={c.href} title={c.title} emoji={c.emoji} />
-          ))}
-        </nav>
+        <HomeGatedNav />
       </div>
+
+      <HomePricingAndShop />
     </div>
   );
 }

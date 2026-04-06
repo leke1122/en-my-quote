@@ -36,6 +36,7 @@ async function main() {
         create: {
           plan: "trial",
           status: "active",
+          validFrom: new Date(),
           validUntil,
           provider: "seed",
         },
@@ -53,6 +54,7 @@ async function main() {
         userId: u.id,
         plan: "trial",
         status: "active",
+        validFrom: new Date(),
         validUntil,
         provider: "seed",
       },

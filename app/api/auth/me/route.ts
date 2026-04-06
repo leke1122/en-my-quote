@@ -39,7 +39,9 @@ export async function GET() {
       ? {
           plan: user.subscription.plan,
           status: user.subscription.status,
+          validFrom: user.subscription.validFrom?.toISOString() ?? null,
           validUntil: user.subscription.validUntil?.toISOString() ?? null,
+          createdAt: user.subscription.createdAt.toISOString(),
         }
       : null,
   });
