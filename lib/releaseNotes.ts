@@ -7,11 +7,23 @@ export type ReleaseNoteItem = {
 
 export const APP_VERSION = pkg.version;
 
+/** 版本说明页最多展示的更新条数（不含更早历史，如需归档可单独保留文档）。 */
+export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
+
 /**
  * 版本说明（简单可读）
- * 维护方式：每次发布后在数组首项追加一条即可。
+ * 维护方式：每次发布后在数组首项追加一条即可；超过 8 条时旧记录仍在代码里但不会出现在页面。
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
+  {
+    date: "2026-04-08",
+    summary: [
+      "分享报价/分享合同时会说明：因图片占用大，分享为不带商品图片的文字与金额版；链接里自动去掉行内图片，减少「数据过大」报错。",
+      "新建报价里供方下拉里不再显示「· 默认」字样。",
+      "报价与合同都支持「保存为默认条款」，下次新建时自动带入上次保存的条款。",
+      "新建合同时不再自动带出多段预置条款，需要时自行添加即可。",
+    ],
+  },
   {
     date: "2026-04-07",
     summary: [
@@ -23,4 +35,9 @@ export const RELEASE_NOTES: ReleaseNoteItem[] = [
     ],
   },
 ];
+
+/** 用于页面展示：仅最近若干条。 */
+export function getRecentReleaseNotes(): ReleaseNoteItem[] {
+  return RELEASE_NOTES.slice(0, RELEASE_NOTES_DISPLAY_LIMIT);
+}
 
