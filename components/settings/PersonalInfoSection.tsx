@@ -314,7 +314,7 @@ export function PersonalInfoSection() {
           </div>
 
           <TextButton variant="secondary" onClick={() => void logout()}>
-            退出登录
+            退出账号
           </TextButton>
         </div>
       ) : null}
