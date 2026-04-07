@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TextButton } from "@/components/TextButton";
-import { collectLocalDataBackup, downloadDataBackupJson } from "@/lib/dataBackup";
+import { collectLocalDataBackup } from "@/lib/dataBackup";
 import { isEntitlementActive } from "@/lib/subscriptionAccess";
 import { describePlan, formatDateYmdCn } from "@/lib/subscriptionPlanDisplay";
 
@@ -90,10 +90,7 @@ export function PersonalInfoSection() {
     }
   }, []);
 
-  function quickExport() {
-    const payload = collectLocalDataBackup(false);
-    downloadDataBackupJson(payload);
-  }
+  // 导出功能统一放在「数据导出」区，避免入口重复。
 
   async function login() {
     setMsg("");
@@ -174,16 +171,6 @@ export function PersonalInfoSection() {
         )}
       </p>
 
-      <div className="mb-4 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
-        <p className="text-xs font-medium text-slate-600">一键导出业务数据</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-          将当前浏览器中的商品、客户、报价、合同等打包为 JSON 下载，便于备份与归档。更多选项（如是否包含敏感配置字段）见下方「数据导出」。
-        </p>
-        <TextButton variant="secondary" className="mt-2" onClick={quickExport}>
-          一键导出
-        </TextButton>
-      </div>
-
       {!cloudEnabled ? (
         <p className="text-sm leading-relaxed text-slate-600">
           当前部署未启用云端账号。配置{" "}
@@ -212,20 +199,28 @@ export function PersonalInfoSection() {
                   {planMeta.contract ? " 合同" : ""}
                   {!planMeta.quote && !planMeta.contract ? " —" : ""}
                 </p>
-                <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-800">
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <span className="text-slate-600">开始日期</span>
-                    <span className="font-medium tabular-nums">{formatDateYmdCn(periodStartIso)}</span>
+                {active ? (
+                  <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span className="text-slate-600">开始日期</span>
+                      <span className="font-medium tabular-nums">{formatDateYmdCn(periodStartIso)}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap justify-between gap-2 border-t border-slate-200/80 pt-1">
+                      <span className="text-slate-600">结束日期</span>
+                      <span className="font-medium tabular-nums">
+                        {sub.plan === "lifetime"
+                          ? "永久"
+                          : sub.validUntil
+                            ? formatDateYmdCn(sub.validUntil)
+                            : "—"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap justify-between gap-2 border-t border-slate-200/80 pt-1">
-                    <span className="text-slate-600">结束日期</span>
-                    <span className="font-medium tabular-nums">
-                      {sub.plan === "lifetime" || !sub.validUntil
-                        ? "永久"
-                        : formatDateYmdCn(sub.validUntil)}
-                    </span>
-                  </div>
-                </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    当前未激活或已过期。兑换激活码后将显示有效期。
+                  </p>
+                )}
                 <p className="mt-2 text-xs text-slate-500">
                   内部标识：<span className="font-mono">{sub.plan}</span>
                   {" · "}

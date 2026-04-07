@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DataBackupSection } from "@/components/settings/DataBackupSection";
 import { PersonalInfoSection } from "@/components/settings/PersonalInfoSection";
@@ -55,12 +54,6 @@ export default function SettingsPage() {
             >
               打开店铺 hcwnn1122.taobao.com
             </a>
-          </p>
-          <p>
-            <span className="text-slate-500">新用户注册：</span>
-            <Link href="/register" className="font-medium text-slate-900 underline-offset-2 hover:underline">
-              前往注册页
-            </Link>
           </p>
           <p>
             <span className="text-slate-500">开发者微信：</span>
