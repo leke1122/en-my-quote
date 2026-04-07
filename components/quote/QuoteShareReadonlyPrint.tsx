@@ -49,13 +49,13 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
-            <div className="text-xs text-slate-500">报价单号</div>
+            <div className="text-xs text-slate-500">报价单号：</div>
             <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium leading-normal text-slate-900">
               {data.quoteNo || "—"}
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">报价日期</div>
+            <div className="text-xs text-slate-500">报价日期：</div>
             <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-normal">
               {data.date || "—"}
             </div>
@@ -200,7 +200,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
           <div id="quote-export-extra-fees-fields" className="mt-3 space-y-2">
             <div className="text-sm text-slate-600">其他费用</div>
             {extraFees.map((f) => (
-              <div key={f.id} className="flex flex-wrap gap-2 text-sm">
+              <div key={f.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-[6rem]">{f.name || "—"}</span>
                 <span>{formatCurrency(f.amount)}</span>
               </div>
@@ -238,15 +238,16 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
       {hasTerms ? (
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
           <h3 className="mb-3 text-sm font-semibold text-slate-900">报价条款</h3>
-          <ol className="list-decimal space-y-3 pl-5 text-sm text-slate-800">
+          <div className="space-y-3 text-sm text-slate-800">
             {terms
               .filter((t) => t.trim().length > 0)
               .map((t, i) => (
-                <li key={i} className="pl-1 whitespace-pre-wrap break-words leading-relaxed">
-                  {t}
-                </li>
+                <div key={i} className="flex items-start gap-2">
+                  <div className="w-7 text-right font-medium">{i + 1}.</div>
+                  <div className="flex-1 whitespace-pre-wrap break-words leading-relaxed">{t}</div>
+                </div>
               ))}
-          </ol>
+          </div>
         </div>
       ) : null}
 

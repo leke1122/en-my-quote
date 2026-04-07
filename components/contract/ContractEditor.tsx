@@ -484,7 +484,8 @@ export function ContractEditor() {
 
     if (isDraft || !contractId) {
       const ymd = dateToYmdCompact(signingDate);
-      finalNo = finalNo || commitNextContractNo(ymd);
+      const previewNo = peekNextContractNo(ymd);
+      finalNo = !finalNo || finalNo === previewNo ? commitNextContractNo(ymd) : finalNo;
       id =
         typeof crypto !== "undefined" && crypto.randomUUID
           ? crypto.randomUUID()

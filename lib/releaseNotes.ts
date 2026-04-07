@@ -1,7 +1,8 @@
 import pkg from "@/package.json";
 
 export type ReleaseNoteItem = {
-  date: string;
+  version: string;
+  datetime: string;
   summary: string[];
 };
 
@@ -16,7 +17,8 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
-    date: "2026-04-08",
+    version: "0.1.2",
+    datetime: "2026-04-08 16:45",
     summary: [
       "分享报价/分享合同时会说明：因图片占用大，分享为不带商品图片的文字与金额版；链接里自动去掉行内图片，减少「数据过大」报错。",
       "新建报价里供方下拉里不再显示「· 默认」字样。",
@@ -25,7 +27,8 @@ export const RELEASE_NOTES: ReleaseNoteItem[] = [
     ],
   },
   {
-    date: "2026-04-07",
+    version: "0.1.1",
+    datetime: "2026-04-07 23:30",
     summary: [
       "首页新增“版本说明”入口，方便查看更新。",
       "帮助页新增手机端截图展示区，点击图片可放大查看。",

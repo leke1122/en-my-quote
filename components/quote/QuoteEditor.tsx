@@ -444,7 +444,8 @@ export function QuoteEditor() {
 
     if (isDraft || !quoteId) {
       const trimmedNo = quoteNo.trim();
-      finalNo = trimmedNo ? trimmedNo : commitNextQuoteNo(abbr, ymdCompact);
+      const previewNo = peekNextQuoteNo(abbr, ymdCompact);
+      finalNo = !trimmedNo || trimmedNo === previewNo ? commitNextQuoteNo(abbr, ymdCompact) : trimmedNo;
       id =
         typeof crypto !== "undefined" && crypto.randomUUID
           ? crypto.randomUUID()
@@ -588,7 +589,7 @@ export function QuoteEditor() {
               contact: company.contact,
               phone: company.phone,
               address: company.address,
-              logo: company.logo,
+              logo: undefined,
               taxId: company.taxId,
               bankName: company.bankName,
               bankCode: company.bankCode,
@@ -748,6 +749,9 @@ export function QuoteEditor() {
         />
         显示明细商品图片（取消勾选则隐藏图片列；导出图片与 PDF 时同样生效）
       </label>
+      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+        提示：报价单号按“每天从 001 开始、每保存一次递增”。未保存前预览号可能保持不变，保存后才会占用并跳到下一个编号。
+      </p>
 
       <div
         id="quote-print"
@@ -773,7 +777,7 @@ export function QuoteEditor() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-slate-500" htmlFor="quote-no-input">
-                报价单号
+                报价单号：
                 <span className="quote-no-print">（可修改）</span>
               </label>
               <input
@@ -789,7 +793,7 @@ export function QuoteEditor() {
               />
             </div>
             <div>
-              <label className="text-xs text-slate-500">报价日期</label>
+              <label className="text-xs text-slate-500">报价日期：</label>
               <input
                 type="date"
                 className="mt-1 w-full min-h-11 rounded border border-slate-300 px-3 py-2.5 text-sm leading-normal"
@@ -1118,9 +1122,9 @@ export function QuoteEditor() {
               </TextButton>
             </div>
             {extraFees.map((f) => (
-              <div key={f.id} className="flex flex-wrap items-center gap-2">
+              <div key={f.id} className="flex w-full flex-wrap items-center gap-2">
                 <input
-                  className="min-h-9 rounded border border-slate-300 px-2 py-2 text-sm leading-normal"
+                  className="min-h-9 flex-1 rounded border border-slate-300 px-2 py-2 text-sm leading-normal"
                   value={f.name}
                   onChange={(e) => updateExtraFee(f.id, { name: e.target.value })}
                 />
@@ -1128,7 +1132,7 @@ export function QuoteEditor() {
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  className="min-h-9 w-28 rounded border border-slate-300 px-2 py-2 text-sm leading-normal"
+                  className="ml-auto min-h-9 w-28 rounded border border-slate-300 px-2 py-2 text-right text-sm leading-normal"
                   value={displayExtraFeeAmount(f, extraFeeAmountDraft)}
                   onChange={(e) => setExtraFeeAmountInput(f.id, e.target.value)}
                 />
@@ -1190,10 +1194,11 @@ export function QuoteEditor() {
               暂无条款，可点击「添加条款」增加一条或多条说明。
             </p>
           ) : (
-            <ol className="list-decimal space-y-3 pl-5 text-sm text-slate-800">
+            <div className="space-y-3 text-sm text-slate-800">
               {terms.map((t, i) => (
-                <li key={i} className="pl-1">
-                  <div className="flex gap-2">
+                <div key={i} className="flex items-start gap-2">
+                  <div className="w-7 pt-2 text-right font-medium">{i + 1}.</div>
+                  <div className="flex-1">
                     <textarea
                       rows={3}
                       className="min-h-[4rem] flex-1 rounded border border-slate-300 px-3 py-2 leading-relaxed"
@@ -1201,6 +1206,7 @@ export function QuoteEditor() {
                       onChange={(e) => updateTerm(i, e.target.value)}
                       placeholder={`第 ${i + 1} 条条款内容`}
                     />
+                  </div>
                     <TextButton
                       variant="ghost"
                       className="quote-no-print h-fit shrink-0 text-red-700"
@@ -1209,9 +1215,8 @@ export function QuoteEditor() {
                       删除
                     </TextButton>
                   </div>
-                </li>
               ))}
-            </ol>
+            </div>
           )}
         </div>
 

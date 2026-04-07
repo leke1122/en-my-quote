@@ -24,10 +24,10 @@ export default function ReleaseNotesPage() {
 
       <section className="space-y-4">
         {displayed.map((item, idx) => (
-          <article key={`${item.date}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <article key={`${item.datetime}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-slate-900">v{APP_VERSION}</h2>
-              <span className="text-xs text-slate-500">{item.date}</span>
+              <h2 className="text-base font-semibold text-slate-900">v{item.version}</h2>
+              <span className="text-xs text-slate-500">{item.datetime}</span>
             </div>
             <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-700">
               {item.summary.map((line, i) => (
