@@ -242,6 +242,23 @@ export default function HelpPage() {
           </div>
         </Section>
 
+        <Section
+          title="8. 手机端界面预览"
+          subtitle="下方为在手机上使用时的实际界面截图，点击任意图片可放大查看。"
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Shot src="/help/mobile-home.png" alt="手机端首页与功能入口" />
+            <Shot src="/help/mobile-products.png" alt="手机端商品管理与新增商品" />
+            <Shot src="/help/mobile-customers.png" alt="手机端客户管理与新增客户" />
+            <Shot src="/help/mobile-company.png" alt="手机端我司信息管理与新增主体" />
+            <Shot src="/help/mobile-quotes-list.png" alt="手机端查询历史报价与导出" />
+            <Shot src="/help/mobile-quote-new.png" alt="手机端新建报价单并生成图片/PDF" />
+            <Shot src="/help/mobile-contract-new.png" alt="手机端新建合同并从报价生成" />
+            <Shot src="/help/mobile-quote-preview.png" alt="报价单导出预览示例" />
+            <Shot src="/help/mobile-contract-preview.png" alt="合同导出预览示例" />
+          </div>
+        </Section>
+
         <section className="rounded-2xl border-2 border-amber-500/90 bg-gradient-to-br from-amber-50 to-orange-50/80 p-6 shadow-md">
           <h2 className="text-lg font-bold tracking-tight text-amber-950">购买激活码 / 续费</h2>
           <p className="mt-2 text-sm leading-relaxed text-amber-950/90">
