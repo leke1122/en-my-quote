@@ -22,13 +22,16 @@ export async function createSessionToken(userId: string, email: string): Promise
     .sign(getJwtSecretKey());
 }
 
-export async function verifySessionToken(token: string): Promise<{ userId: string; email: string } | null> {
+export async function verifySessionToken(
+  token: string
+): Promise<{ userId: string; email: string; issuedAt?: number } | null> {
   try {
     const { payload } = await jwtVerify(token, getJwtSecretKey());
     const userId = typeof payload.sub === "string" ? payload.sub : "";
     const email = typeof payload.email === "string" ? payload.email : "";
+    const issuedAt = typeof payload.iat === "number" ? payload.iat : undefined;
     if (!userId) return null;
-    return { userId, email };
+    return { userId, email, issuedAt };
   } catch {
     return null;
   }

@@ -25,6 +25,7 @@ type MeJson =
       loggedIn: true;
       cloud: true;
       user: { id: string; email: string };
+      lastLoginAt?: string | null;
       subscription: MeSubscription | null;
     };
 

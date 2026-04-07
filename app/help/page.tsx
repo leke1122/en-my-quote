@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ConfigJson = { purchaseShopUrl?: string };
 
@@ -62,6 +63,7 @@ function Shot({
 
 export default function HelpPage() {
   const [shopUrl, setShopUrl] = useState("https://hcwnn1122.taobao.com");
+  const router = useRouter();
 
   useEffect(() => {
     void fetch("/api/auth/config")
@@ -81,12 +83,25 @@ export default function HelpPage() {
             本页无需登录即可查看。重点：手机端也能直接生成报价/合同，并可导出图片或 PDF 发送给客户查看（分享链接为只读预览）。
           </p>
         </div>
-        <Link
-          href="/settings"
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const res = await fetch("/api/auth/me", { credentials: "include" });
+              const j = (await res.json()) as { loggedIn?: boolean };
+              if (res.ok && j && j.loggedIn) {
+                router.push("/settings");
+              } else {
+                router.push("/login");
+              }
+            } catch {
+              router.push("/login");
+            }
+          }}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
         >
           去设置（激活码/导出）
-        </Link>
+        </button>
       </header>
 
       <div className="space-y-6 sm:space-y-8">

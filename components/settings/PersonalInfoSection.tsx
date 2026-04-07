@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TextButton } from "@/components/TextButton";
 import { collectLocalDataBackup, downloadDataBackupJson } from "@/lib/dataBackup";
 import { isEntitlementActive } from "@/lib/subscriptionAccess";
@@ -14,6 +15,7 @@ type MeJson =
       loggedIn: true;
       cloud: true;
       user: { id: string; email: string };
+      lastLoginAt?: string | null;
       subscription: {
         plan: string;
         status: string;
@@ -24,8 +26,8 @@ type MeJson =
     };
 
 export function PersonalInfoSection() {
+  const router = useRouter();
   const [cloudEnabled, setCloudEnabled] = useState(false);
-  const [trialDays, setTrialDays] = useState(14);
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<MeJson | null>(null);
   const [email, setEmail] = useState("");
@@ -33,13 +35,27 @@ export function PersonalInfoSection() {
   const [msg, setMsg] = useState("");
   const [activationCode, setActivationCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [stats, setStats] = useState<{
+    customers: number;
+    products: number;
+    quotes: number;
+    contracts: number;
+    quoteTimes: number;
+    contractTimes: number;
+  }>({
+    customers: 0,
+    products: 0,
+    quotes: 0,
+    contracts: 0,
+    quoteTimes: 0,
+    contractTimes: 0,
+  });
 
   const refresh = useCallback(async () => {
     const cfg = await fetch("/api/auth/config").then(
       (r) => r.json() as Promise<{ cloudAuthEnabled?: boolean; trialDays?: number }>
     );
     setCloudEnabled(!!cfg.cloudAuthEnabled);
-    setTrialDays(typeof cfg.trialDays === "number" ? cfg.trialDays : 14);
     const m = await fetch("/api/auth/me", { credentials: "include" }).then((r) => r.json() as Promise<MeJson>);
     setMe(m);
     setLoading(false);
@@ -48,6 +64,31 @@ export function PersonalInfoSection() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload = collectLocalDataBackup(false);
+      const quoteTimes = Object.values(payload.quoteCounter ?? {}).reduce(
+        (sum, v) => sum + (typeof v === "number" ? v : 0),
+        0
+      );
+      const contractTimes = Object.values(payload.contractCounter ?? {}).reduce(
+        (sum, v) => sum + (typeof v === "number" ? v : 0),
+        0
+      );
+      setStats({
+        customers: payload.customers.length,
+        products: payload.products.length,
+        quotes: payload.quotes.length,
+        contracts: payload.contracts.length,
+        quoteTimes,
+        contractTimes,
+      });
+    } catch {
+      // ignore stats errors
+    }
+  }, []);
 
   function quickExport() {
     const payload = collectLocalDataBackup(false);
@@ -118,6 +159,7 @@ export function PersonalInfoSection() {
   const active = Boolean(sub && isEntitlementActive(sub));
   const planMeta = sub ? describePlan(sub.plan) : null;
   const periodStartIso = sub ? sub.validFrom ?? sub.createdAt ?? null : null;
+  const lastLoginAt = loggedIn && me.loggedIn ? me.lastLoginAt ?? null : null;
 
   return (
     <section className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -125,8 +167,7 @@ export function PersonalInfoSection() {
       <p className="mb-4 text-xs leading-relaxed text-slate-600">
         {cloudEnabled ? (
           <>
-            云端账号与订阅信息保存在<strong>服务端数据库</strong>；报价、合同等业务数据在当前浏览器中编辑与缓存。新用户注册后默认试用{" "}
-            {trialDays} 天全功能（以系统配置为准）。
+            云端账号与订阅信息保存在<strong>服务端数据库</strong>；报价、合同等业务数据在当前浏览器中编辑与缓存。新用户注册后默认未激活，需要在此兑换激活码后方可使用报价与合同功能。
           </>
         ) : (
           <>当前部署未启用服务端数据库时，无云端账号与订阅；业务数据仅保存在本机浏览器。</>
@@ -197,6 +238,63 @@ export function PersonalInfoSection() {
             ) : (
               <p className="mt-1 text-sm text-amber-800">暂无订阅记录，请兑换激活码或联系管理员。</p>
             )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 sm:px-4">
+            <p className="text-xs font-medium text-slate-500">账户统计（当前浏览器）</p>
+            <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+              <button
+                type="button"
+                className="flex flex-col items-start rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-left hover:border-slate-200 hover:bg-slate-100"
+                onClick={() => router.push("/products")}
+              >
+                <span className="text-xs text-slate-500">商品数量</span>
+                <span className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                  {stats.products}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="flex flex-col items-start rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-left hover:border-slate-200 hover:bg-slate-100"
+                onClick={() => router.push("/customers")}
+              >
+                <span className="text-xs text-slate-500">客户数量</span>
+                <span className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                  {stats.customers}
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={!active || !planMeta?.quote}
+                className="flex flex-col items-start rounded-md border border-slate-100 px-3 py-2 text-left disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 hover:border-slate-200 hover:bg-slate-100"
+                onClick={() => {
+                  if (!active || !planMeta?.quote) return;
+                  router.push("/quote/new");
+                }}
+              >
+                <span className="text-xs text-slate-500">累计报价次数</span>
+                <span className="mt-0.5 text-base font-semibold tabular-nums">
+                  {stats.quoteTimes}
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={!active || !planMeta?.contract}
+                className="flex flex-col items-start rounded-md border border-slate-100 px-3 py-2 text-left disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 hover:border-slate-200 hover:bg-slate-100"
+                onClick={() => {
+                  if (!active || !planMeta?.contract) return;
+                  router.push("/contract/new");
+                }}
+              >
+                <span className="text-xs text-slate-500">累计合同次数</span>
+                <span className="mt-0.5 text-base font-semibold tabular-nums">
+                  {stats.contractTimes}
+                </span>
+              </button>
+            </div>
+            <div className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
+              最近一次登录：{formatDateYmdCn(lastLoginAt)}
+            </div>
           </div>
 
           <div>

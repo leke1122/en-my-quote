@@ -21,6 +21,11 @@ export async function GET() {
     return NextResponse.json({ ok: true, loggedIn: false, cloud: true });
   }
 
+  const lastLoginAt =
+    typeof session.issuedAt === "number"
+      ? new Date(session.issuedAt * 1000).toISOString()
+      : null;
+
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     include: { subscription: true },
@@ -35,6 +40,7 @@ export async function GET() {
     loggedIn: true,
     cloud: true,
     user: { id: user.id, email: user.email },
+    lastLoginAt,
     subscription: user.subscription
       ? {
           plan: user.subscription.plan,
