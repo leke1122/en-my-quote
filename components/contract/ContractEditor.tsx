@@ -26,7 +26,7 @@ import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
 import { encodeSharePayload } from "@/lib/share";
 import { formatCurrency } from "@/lib/format";
 import { partyFromCompany, partyFromCustomer } from "@/lib/partyFromMasters";
-import { initialClausesWithDeliveryAddress, quoteLinesToContractLines } from "@/lib/quoteToContract";
+import { quoteLinesToContractLines } from "@/lib/quoteToContract";
 import { dateToYmdCompact } from "@/lib/quoteNumber";
 import {
   getCompanies,
@@ -86,6 +86,25 @@ const emptyQuickProduct: Omit<Product, "id"> = {
 
 type LineTextDraft = Record<string, { price?: string; qty?: string }>;
 type ExtraFeeAmountDraft = Record<string, string>;
+const CONTRACT_CLAUSES_TEMPLATE_KEY = "contract_clauses_template_v1";
+
+function loadContractClausesTemplate(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CONTRACT_CLAUSES_TEMPLATE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveContractClausesTemplate(clauses: string[]): void {
+  if (typeof window === "undefined") return;
+  const clean = clauses.map((c) => c.trim()).filter(Boolean);
+  localStorage.setItem(CONTRACT_CLAUSES_TEMPLATE_KEY, JSON.stringify(clean));
+}
 
 function displayLinePrice(l: ContractLine, draft: LineTextDraft): string {
   const v = draft[l.id]?.price;
@@ -224,7 +243,7 @@ export function ContractEditor() {
     setCustomerId(q.customerId);
     setCustomerQuery(cust?.name ?? "");
     setLines(quoteLinesToContractLines(q.lines));
-    setClauses(initialClausesWithDeliveryAddress(cust?.address ?? ""));
+    setClauses(loadContractClausesTemplate());
     setBuyer(cust ? partyFromCustomer(cust) : emptyParty);
     setSeller(comp ? partyFromCompany(comp) : emptyParty);
     setSourceQuoteId(q.id);
@@ -317,7 +336,7 @@ export function ContractEditor() {
       setCustomerId("");
       setCustomerQuery("");
       setLines([]);
-      setClauses(initialClausesWithDeliveryAddress(""));
+      setClauses(loadContractClausesTemplate());
       setBuyer(emptyParty);
       setSeller(def ? partyFromCompany(def) : emptyParty);
       setTaxIncluded(false);
@@ -1051,9 +1070,20 @@ export function ContractEditor() {
         <div id="contract-clauses-section" className="mt-8 border-t border-slate-200 pt-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900">合同条款</h3>
-            <TextButton variant="secondary" className="quote-no-print shrink-0" onClick={addClause}>
-              添加条款
-            </TextButton>
+            <div className="quote-no-print flex flex-wrap gap-2">
+              <TextButton
+                variant="secondary"
+                onClick={() => {
+                  saveContractClausesTemplate(clauses);
+                  alert("已保存为默认条款，下次新建合同自动带入。");
+                }}
+              >
+                保存为默认条款
+              </TextButton>
+              <TextButton variant="secondary" onClick={addClause}>
+                添加条款
+              </TextButton>
+            </div>
           </div>
           {clauses.length === 0 ? (
             <p className="quote-no-print text-sm text-slate-500">暂无条款</p>
@@ -1197,7 +1227,7 @@ export function ContractEditor() {
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              将链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。
+              将链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为避免内存占用过大，分享仅包含文本和金额信息，不包含商品图片。
             </p>
             <input
               readOnly

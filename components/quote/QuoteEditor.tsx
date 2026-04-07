@@ -86,6 +86,25 @@ const emptyQuickCustomer: Omit<Customer, "id"> = {
 type LineTextDraft = Record<string, { price?: string; qty?: string }>;
 
 type ExtraFeeAmountDraft = Record<string, string>;
+const QUOTE_TERMS_TEMPLATE_KEY = "quote_terms_template_v1";
+
+function loadQuoteTermsTemplate(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(QUOTE_TERMS_TEMPLATE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveQuoteTermsTemplate(terms: string[]): void {
+  if (typeof window === "undefined") return;
+  const clean = terms.map((t) => t.trim()).filter(Boolean);
+  localStorage.setItem(QUOTE_TERMS_TEMPLATE_KEY, JSON.stringify(clean));
+}
 
 function displayLinePrice(l: QuoteLine, draft: LineTextDraft): string {
   const v = draft[l.id]?.price;
@@ -252,7 +271,7 @@ export function QuoteEditor() {
       setTaxIncluded(false);
       setTaxRate(13);
       setExtraFees([]);
-      setTerms([]);
+      setTerms(loadQuoteTermsTemplate());
       setLineTextDraft({});
       setExtraFeeAmountDraft({});
       setQuoteNoLocked(false);
@@ -584,7 +603,8 @@ export function QuoteEditor() {
               address: customer.address,
             }
           : null,
-        lines,
+        // 分享链接需要尽量短：不携带行内 base64 图片，避免超长 URL。
+        lines: lines.map((l) => ({ ...l, image: undefined })),
         taxIncluded,
         taxRate,
         extraFees,
@@ -595,7 +615,7 @@ export function QuoteEditor() {
         typeof window !== "undefined" ? `${window.location.origin}/quote/preview` : "";
       const url = `${base}?share=${encodeURIComponent(enc)}`;
       if (url.length > 32000) {
-        setShareError("报价数据过大，请减少明细或删除行内图片后重试，或使用导出 PDF/图片分享。");
+        setShareError("报价数据过大。分享已自动隐藏图片，如仍过大请减少明细，或改用生成图片/PDF。");
         return;
       }
       setShareUrl(url);
@@ -801,7 +821,7 @@ export function QuoteEditor() {
                   <option value="">请选择供方</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.abbr}){c.isDefault ? " · 默认" : ""}
+                      {c.name} ({c.abbr})
                     </option>
                   ))}
                 </select>
@@ -1150,9 +1170,20 @@ export function QuoteEditor() {
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900">报价条款</h3>
-            <TextButton variant="secondary" className="quote-no-print shrink-0" onClick={addTerm}>
-              添加条款
-            </TextButton>
+            <div className="quote-no-print flex flex-wrap gap-2">
+              <TextButton
+                variant="secondary"
+                onClick={() => {
+                  saveQuoteTermsTemplate(terms);
+                  alert("已保存为默认条款，下次新建报价自动带入。");
+                }}
+              >
+                保存为默认条款
+              </TextButton>
+              <TextButton variant="secondary" onClick={addTerm}>
+                添加条款
+              </TextButton>
+            </div>
           </div>
           {terms.length === 0 ? (
             <p className="quote-no-print text-sm text-slate-500">
@@ -1255,7 +1286,7 @@ export function QuoteEditor() {
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              将下方链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为缩短链接，分享数据不含明细中的商品大图；需要带图请使用「生成图片」或「生成PDF」。
+              将下方链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为避免内存占用过大，分享会自动隐藏商品图片，仅分享文字和金额；需要带图请使用「生成图片」或「生成PDF」。
             </p>
             <div>
               <label className="block text-xs text-slate-500">分享链接</label>
