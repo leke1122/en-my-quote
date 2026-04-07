@@ -14,6 +14,9 @@ export type PlanFeatures = {
 export function describePlan(plan: string): PlanFeatures {
   const p = plan.trim().toLowerCase();
 
+  if (p === "unactivated" || p === "pending") {
+    return { displayName: "未激活（请兑换激活码）", quote: false, contract: false };
+  }
   if (p === "trial") {
     return { displayName: "试用版（全功能）", quote: true, contract: true };
   }

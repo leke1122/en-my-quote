@@ -25,7 +25,8 @@ function computeRedeemWindow(
 
   const expiredOrNoEnd =
     !sub?.validUntil || sub.validUntil.getTime() <= now.getTime();
-  const isTrial = !sub || sub.plan === "trial";
+  const isTrial =
+    !sub || sub.plan === "trial" || sub.plan === "unactivated";
   const startFresh = isTrial || expiredOrNoEnd;
 
   if (startFresh) {

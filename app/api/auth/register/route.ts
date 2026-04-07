@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
 import { COOKIE_NAME, createSessionToken } from "@/lib/sessionJwt";
-import { trialEndDate } from "@/lib/subscriptionLogic";
+import { REGISTRATION_SUBSCRIPTION_CREATE } from "@/lib/initialSubscriptionRegistration";
 
 export const runtime = "nodejs";
 
@@ -32,8 +32,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "密码至少 8 位" }, { status: 400 });
   }
 
-  const trialDays = Math.min(Math.max(Number(process.env.SUBSCRIPTION_TRIAL_DAYS) || 14, 1), 365);
-
   try {
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -41,13 +39,7 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         subscription: {
-          create: {
-            plan: "trial",
-            status: "active",
-            validFrom: new Date(),
-            validUntil: trialEndDate(trialDays),
-            provider: "manual",
-          },
+          create: { ...REGISTRATION_SUBSCRIPTION_CREATE },
         },
       },
       include: { subscription: true },

@@ -1,9 +1,13 @@
+/**
+ * 邮箱验证码注册（需先 POST /api/auth/email/send-code）。
+ * 当前注册页已改为直接 POST /api/auth/register；若日后恢复「邮件验证码注册」，前端可再切回本接口。
+ */
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
 import { COOKIE_NAME, createSessionToken } from "@/lib/sessionJwt";
-import { trialEndDate } from "@/lib/subscriptionLogic";
+import { REGISTRATION_SUBSCRIPTION_CREATE } from "@/lib/initialSubscriptionRegistration";
 
 export const runtime = "nodejs";
 
@@ -51,8 +55,6 @@ export async function POST(request: Request) {
 
   await prisma.emailVerificationCode.deleteMany({ where: { email } });
 
-  const trialDays = Math.min(Math.max(Number(process.env.SUBSCRIPTION_TRIAL_DAYS) || 14, 1), 365);
-
   try {
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -60,13 +62,7 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         subscription: {
-          create: {
-            plan: "trial",
-            status: "active",
-            validFrom: new Date(),
-            validUntil: trialEndDate(trialDays),
-            provider: "manual",
-          },
+          create: { ...REGISTRATION_SUBSCRIPTION_CREATE },
         },
       },
       include: { subscription: true },
