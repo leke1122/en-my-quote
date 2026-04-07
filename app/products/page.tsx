@@ -4,8 +4,11 @@ import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionF
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { formatCurrency } from "@/lib/format";
+import { readImageCompressedDataUrl } from "@/lib/imageUpload";
 import { getProducts, setProducts } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
@@ -33,6 +36,7 @@ export default function ProductsPage() {
 }
 
 function ProductsPageInner() {
+  const subCtx = useSubscriptionAccess();
   const [list, setList] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -80,7 +84,7 @@ function ProductsPageInner() {
     setModalOpen(true);
   }
 
-  function save() {
+  async function save() {
     const products = getProducts();
     if (!form.code.trim() || !form.name.trim()) {
       alert("请填写商品编码与名称");
@@ -113,25 +117,33 @@ function ProductsPageInner() {
         },
       ]);
     }
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已保存到本地，但同步云端失败：${sync.error}`);
+    }
     setModalOpen(false);
     refresh();
   }
 
-  function remove(p: Product) {
+  async function remove(p: Product) {
     if (!confirm(`确定删除「${p.name}」？`)) return;
     setProducts(getProducts().filter((x) => x.id !== p.id));
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已删除本地数据，但同步云端失败：${sync.error}`);
+    }
     refresh();
   }
 
-  function onImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const r = reader.result;
-      if (typeof r === "string") setForm((s) => ({ ...s, image: r }));
-    };
-    reader.readAsDataURL(f);
+    try {
+      const compressed = await readImageCompressedDataUrl(f, { maxSide: 1200, quality: 0.8 });
+      setForm((s) => ({ ...s, image: compressed }));
+    } catch {
+      alert("图片处理失败，请换一张图片重试");
+    }
   }
 
   return (

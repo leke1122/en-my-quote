@@ -8,9 +8,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
 import { formatCurrency } from "@/lib/format";
+import { readImageCompressedDataUrl } from "@/lib/imageUpload";
 import type { QuoteSharePayload } from "@/lib/quoteSharePayload";
 import { quoteHtml2canvasOnClone } from "@/lib/quotePrintHtml2Canvas";
 import { quoteGrandTotal, quoteSubtotal, quoteTax } from "@/lib/quoteTotals";
@@ -111,6 +114,7 @@ function quoteHasExtraFees(fees: QuoteExtraFee[]): boolean {
 }
 
 export function QuoteEditor() {
+  const subCtx = useSubscriptionAccess();
   const sp = useSearchParams();
   const router = useRouter();
   const quoteIdParam = sp.get("id");
@@ -151,6 +155,7 @@ export function QuoteEditor() {
   const [shareQr, setShareQr] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState("");
+  const [saveHint, setSaveHint] = useState("");
   /** 用户改过单号后，不再用我司/日期自动覆盖预览单号；切换我司或日期会解除 */
   const [quoteNoLocked, setQuoteNoLocked] = useState(false);
   /** 导出图片/PDF：勾选为彩色，不勾选为黑白（默认黑白） */
@@ -400,7 +405,7 @@ export function QuoteEditor() {
     updateExtraFee(id, { amount: Number.isFinite(n) ? n : 0 });
   }
 
-  function saveQuote() {
+  async function saveQuote() {
     if (!companyId) {
       alert("请先在我司信息中维护公司主体并选择");
       return;
@@ -463,8 +468,15 @@ export function QuoteEditor() {
       );
       setQuotes(next);
     }
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) {
+        setSaveHint(`报价已保存本地，但云端同步失败：${sync.error}`);
+        return;
+      }
+    }
     refreshStores();
-    alert("已保存到本地");
+    setSaveHint(`报价已保存（本地浏览器） ${new Date().toLocaleTimeString()}`);
   }
 
   async function exportImage() {
@@ -626,7 +638,7 @@ export function QuoteEditor() {
     setShareQr("");
   }
 
-  function saveQuickProduct() {
+  async function saveQuickProduct() {
     const rows = getProducts();
     if (!quickProduct.code.trim() || !quickProduct.name.trim()) {
       alert("请填写商品编码与名称");
@@ -646,10 +658,14 @@ export function QuoteEditor() {
     setProductsState([...rows, p]);
     setQuickProductOpen(false);
     setQuickProduct({ ...emptyQuickProduct, code: newProductCode([...rows, p]) });
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`商品已保存本地，但同步云端失败：${sync.error}`);
+    }
     refreshStores();
   }
 
-  function saveQuickCustomer() {
+  async function saveQuickCustomer() {
     const rows = getCustomers();
     if (!quickCustomer.name.trim()) {
       alert("请填写客户名称");
@@ -670,6 +686,10 @@ export function QuoteEditor() {
     setCustomerQuery(c.name);
     setQuickCustomerOpen(false);
     setQuickCustomer(emptyQuickCustomer);
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`客户已保存本地，但同步云端失败：${sync.error}`);
+    }
     refreshStores();
   }
 
@@ -678,15 +698,15 @@ export function QuoteEditor() {
     setQuickProductOpen(true);
   }
 
-  function onQuickProductImage(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onQuickProductImage(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const r = reader.result;
-      if (typeof r === "string") setQuickProduct((s) => ({ ...s, image: r }));
-    };
-    reader.readAsDataURL(f);
+    try {
+      const compressed = await readImageCompressedDataUrl(f, { maxSide: 1200, quality: 0.8 });
+      setQuickProduct((s) => ({ ...s, image: compressed }));
+    } catch {
+      alert("图片处理失败，请换一张图片重试");
+    }
   }
 
   return (
@@ -1173,7 +1193,7 @@ export function QuoteEditor() {
             {company.bankName ? (
               <div className="whitespace-pre-wrap break-words">
                 开户行：{company.bankName}
-                {company.bankCode ? `　行号：${company.bankCode}` : ""}
+                {company.bankCode ? `　银行卡号：${company.bankCode}` : ""}
               </div>
             ) : null}
           </div>
@@ -1181,6 +1201,7 @@ export function QuoteEditor() {
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
+        {saveHint ? <p className="text-sm text-emerald-700">{saveHint}</p> : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"

@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pullProjectDataFromCloud } from "@/lib/cloudProjectData";
 import { formatCurrency } from "@/lib/format";
 import { getCustomers, getQuotes } from "@/lib/storage";
 import type { Customer, Quote } from "@/lib/types";
@@ -33,13 +34,16 @@ function QuoteListContent() {
   const [modelQ, setModelQ] = useState("");
   const [specQ, setSpecQ] = useState("");
 
-  const refreshList = useCallback(() => {
+  const refreshList = useCallback(async () => {
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      await pullProjectDataFromCloud();
+    }
     setQuotes(getQuotes().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     setCustomers(getCustomers());
-  }, []);
+  }, [subCtx.cloudAuthEnabled, subCtx.loggedIn]);
 
   useEffect(() => {
-    refreshList();
+    void refreshList();
   }, [refreshList]);
 
   const cloudDataMode = subCtx.cloudAuthEnabled;

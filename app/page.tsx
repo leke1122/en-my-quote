@@ -41,6 +41,12 @@ export default function Home() {
         >
           使用说明
         </Link>
+        <Link
+          href="/release-notes"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          版本说明
+        </Link>
         <HomeAuthLinks />
       </header>
 

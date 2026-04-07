@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Modal } from "@/components/Modal";
 import { TextButton } from "@/components/TextButton";
+import { pullProjectDataFromCloud } from "@/lib/cloudProjectData";
 import {
   canAccessContracts,
   canAccessQuotes,
@@ -189,6 +190,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [purchaseShopUrl, setPurchaseShopUrl] = useState("https://hcwnn1122.taobao.com");
   const [trialDays, setTrialDays] = useState(14);
   const [me, setMe] = useState<MeJson | null>(null);
+  const [cloudDataInited, setCloudDataInited] = useState(false);
 
   const refresh = useCallback(async () => {
     const [cfgRes, meRes] = await Promise.all([
@@ -219,6 +221,29 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const loggedIn = Boolean(me && "loggedIn" in me && me.loggedIn && me.cloud);
   const subscription = loggedIn && me && "loggedIn" in me && me.loggedIn ? me.subscription : null;
+
+  useEffect(() => {
+    if (!loggedIn) setCloudDataInited(false);
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!cloudAuthEnabled || !loggedIn || cloudDataInited) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await pullProjectDataFromCloud();
+      if (!cancelled) {
+        setCloudDataInited(true);
+      }
+      if (!res.ok) {
+        // 保持静默，避免每次进入页面都打断；用户仍可使用本地数据
+        console.warn("[cloud-data] pull failed:", res.error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, cloudAuthEnabled, loggedIn, cloudDataInited]);
 
   const entitledDb = isEntitlementActive(subscription);
   const entitlementActive = !cloudAuthEnabled || entitledDb;

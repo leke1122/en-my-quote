@@ -4,7 +4,9 @@ import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionF
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { getCompanies, setCompanies } from "@/lib/storage";
 import type { Company } from "@/lib/types";
 
@@ -31,6 +33,7 @@ export default function CompanyPage() {
 }
 
 function CompanyPageInner() {
+  const subCtx = useSubscriptionAccess();
   const [list, setList] = useState<Company[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
@@ -76,7 +79,7 @@ function CompanyPageInner() {
     return next;
   }
 
-  function save() {
+  async function save() {
     const rows = getCompanies();
     if (!form.name.trim() || !form.abbr.trim()) {
       alert("请填写公司名称与英文简写");
@@ -101,21 +104,33 @@ function CompanyPageInner() {
     }
     next = applyDefault(next);
     setCompanies(next);
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已保存到本地，但同步云端失败：${sync.error}`);
+    }
     setModalOpen(false);
     refresh();
   }
 
-  function remove(c: Company) {
+  async function remove(c: Company) {
     if (!confirm(`确定删除「${c.name}」？`)) return;
     let next = getCompanies().filter((x) => x.id !== c.id);
     next = applyDefault(next);
     setCompanies(next);
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已删除本地数据，但同步云端失败：${sync.error}`);
+    }
     refresh();
   }
 
-  function setDefault(c: Company) {
+  async function setDefault(c: Company) {
     const next = getCompanies().map((x) => ({ ...x, isDefault: x.id === c.id }));
     setCompanies(next);
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已保存默认主体到本地，但同步云端失败：${sync.error}`);
+    }
     refresh();
   }
 
@@ -200,7 +215,7 @@ function CompanyPageInner() {
               <div>地址：{c.address || "—"}</div>
               <div>税号：{c.taxId || "—"}</div>
               <div>开户行：{c.bankName || "—"}</div>
-              <div>银行行号：{c.bankCode || "—"}</div>
+              <div>银行卡号：{c.bankCode || "—"}</div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {!c.isDefault ? (
@@ -295,7 +310,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">银行行号</label>
+            <label className="block text-slate-600">银行卡号</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.bankCode}

@@ -36,7 +36,11 @@ export function loadJson<T>(key: string, fallback: T): T {
 
 export function saveJson(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    window.alert("保存失败：本地存储空间不足。请先到“设置”导出备份，删除部分大图片后重试。");
+  }
 }
 
 export function getProducts(): Product[] {

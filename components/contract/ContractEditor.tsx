@@ -10,6 +10,7 @@ import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { amountToChineseUppercase } from "@/lib/chineseAmount";
 import { CONTRACT_INTRO } from "@/lib/contractDefaults";
 import {
@@ -160,6 +161,7 @@ export function ContractEditor() {
   const [shareQr, setShareQr] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState("");
+  const [saveHint, setSaveHint] = useState("");
   const [exportInColor, setExportInColor] = useState(false);
 
   const refreshStores = useCallback(() => {
@@ -443,7 +445,7 @@ export function ContractEditor() {
     updateExtraFee(id, { amount: Number.isFinite(n) ? n : 0 });
   }
 
-  function saveContract() {
+  async function saveContract() {
     if (!companyId) {
       alert("请选择供方（我司）");
       return;
@@ -514,8 +516,15 @@ export function ContractEditor() {
       );
       setContracts(next);
     }
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) {
+        setSaveHint(`合同已保存本地，但云端同步失败：${sync.error}`);
+        return;
+      }
+    }
     refreshStores();
-    alert("合同已保存到本地");
+    setSaveHint(`合同已保存（本地浏览器） ${new Date().toLocaleTimeString()}`);
   }
 
   async function exportImage() {
@@ -640,7 +649,7 @@ export function ContractEditor() {
     a.click();
   }
 
-  function saveQuickProduct() {
+  async function saveQuickProduct() {
     if (!quickProduct.name.trim()) {
       alert("请填写商品名称");
       return;
@@ -660,6 +669,10 @@ export function ContractEditor() {
     addProductLine(p);
     setQuickProductOpen(false);
     setQuickProduct(emptyQuickProduct);
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`商品已保存本地，但同步云端失败：${sync.error}`);
+    }
   }
 
   const partyField = (
@@ -1107,6 +1120,7 @@ export function ContractEditor() {
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
+        {saveHint ? <p className="text-sm text-emerald-700">{saveHint}</p> : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={exportInColor} onChange={(e) => setExportInColor(e.target.checked)} />
           导出为彩色（图片/PDF；不勾选为黑白）

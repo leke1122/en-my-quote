@@ -259,7 +259,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
           {company.bankName ? (
             <div className="whitespace-pre-wrap break-words">
               开户行：{company.bankName}
-              {company.bankCode ? `　行号：${company.bankCode}` : ""}
+              {company.bankCode ? `　银行卡号：${company.bankCode}` : ""}
             </div>
           ) : null}
         </div>

@@ -4,7 +4,9 @@ import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionF
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
+import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { getCustomers, setCustomers } from "@/lib/storage";
 import type { Customer } from "@/lib/types";
 
@@ -34,6 +36,7 @@ export default function CustomersPage() {
 }
 
 function CustomersPageInner() {
+  const subCtx = useSubscriptionAccess();
   const [list, setList] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -83,7 +86,7 @@ function CustomersPageInner() {
     setModalOpen(true);
   }
 
-  function save() {
+  async function save() {
     const rows = getCustomers();
     if (!form.code.trim() || !form.name.trim()) {
       alert("请填写客户编码与名称");
@@ -98,13 +101,21 @@ function CustomersPageInner() {
           : `cid-${Date.now()}`;
       setCustomers([...rows, { id, ...form }]);
     }
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已保存到本地，但同步云端失败：${sync.error}`);
+    }
     setModalOpen(false);
     refresh();
   }
 
-  function remove(c: Customer) {
+  async function remove(c: Customer) {
     if (!confirm(`确定删除「${c.name}」？`)) return;
     setCustomers(getCustomers().filter((x) => x.id !== c.id));
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) alert(`已删除本地数据，但同步云端失败：${sync.error}`);
+    }
     refresh();
   }
 

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
+import { pullProjectDataFromCloud } from "@/lib/cloudProjectData";
 import {
   buildCsvUtf8BomBlob,
   buildExcelHtmlTableBlob,
@@ -33,14 +34,17 @@ function ContractListContent() {
   const [modelQ, setModelQ] = useState("");
   const [specQ, setSpecQ] = useState("");
 
-  const refreshList = useCallback(() => {
+  const refreshList = useCallback(async () => {
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      await pullProjectDataFromCloud();
+    }
     setContracts(getContracts().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     setCustomers(getCustomers());
     setCompanies(getCompanies());
-  }, []);
+  }, [subCtx.cloudAuthEnabled, subCtx.loggedIn]);
 
   useEffect(() => {
-    refreshList();
+    void refreshList();
   }, [refreshList]);
 
   const customerMap = useMemo(() => {
