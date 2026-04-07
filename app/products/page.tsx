@@ -9,7 +9,8 @@ import { TextButton } from "@/components/TextButton";
 import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { formatCurrency } from "@/lib/format";
 import { readImageCompressedDataUrl } from "@/lib/imageUpload";
-import { getProducts, setProducts } from "@/lib/storage";
+import { buildProductPriceHistoryMap } from "@/lib/productPriceHistory";
+import { getContracts, getProducts, getQuotes, setProducts } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
 function newProductCode(existing: Product[]): string {
@@ -42,14 +43,32 @@ function ProductsPageInner() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<Omit<Product, "id">>(emptyForm);
+  const [quotesSnap, setQuotesSnap] = useState<ReturnType<typeof getQuotes>>([]);
+  const [contractsSnap, setContractsSnap] = useState<ReturnType<typeof getContracts>>([]);
+
+  const reloadPriceSources = useCallback(() => {
+    setQuotesSnap(getQuotes());
+    setContractsSnap(getContracts());
+  }, []);
 
   const refresh = useCallback(() => {
     setList(getProducts());
-  }, []);
+    reloadPriceSources();
+  }, [reloadPriceSources]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const bump = () => reloadPriceSources();
+    window.addEventListener("focus", bump);
+    return () => window.removeEventListener("focus", bump);
+  }, [reloadPriceSources]);
+
+  const priceHistoryById = useMemo(() => {
+    return buildProductPriceHistoryMap(list, quotesSnap, contractsSnap);
+  }, [list, quotesSnap, contractsSnap]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -168,7 +187,7 @@ function ProductsPageInner() {
       </div>
 
       <div className="hidden md:block overflow-x-auto rounded border border-slate-200">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-3 py-2 font-medium">编号</th>
@@ -177,11 +196,23 @@ function ProductsPageInner() {
               <th className="px-3 py-2 font-medium">规格</th>
               <th className="px-3 py-2 font-medium">单位</th>
               <th className="px-3 py-2 font-medium">单价</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">历史报价单价</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">历史合同单价</th>
               <th className="px-3 py-2 font-medium">操作</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
+            {filtered.map((p) => {
+              const h = priceHistoryById.get(p.id);
+              const quoteRange =
+                h?.quoteMin != null && h?.quoteMax != null
+                  ? `${formatCurrency(h.quoteMin)}～${formatCurrency(h.quoteMax)}`
+                  : "—";
+              const contractRange =
+                h?.contractMin != null && h?.contractMax != null
+                  ? `${formatCurrency(h.contractMin)}～${formatCurrency(h.contractMax)}`
+                  : "—";
+              return (
               <tr key={p.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{p.code}</td>
                 <td className="px-3 py-2">{p.name}</td>
@@ -189,6 +220,8 @@ function ProductsPageInner() {
                 <td className="px-3 py-2">{p.spec}</td>
                 <td className="px-3 py-2">{p.unit}</td>
                 <td className="px-3 py-2">{formatCurrency(p.price)}</td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{quoteRange}</td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{contractRange}</td>
                 <td className="px-3 py-2 space-x-2">
                   <TextButton variant="ghost" className="!px-0" onClick={() => openEdit(p)}>
                     修改
@@ -198,7 +231,8 @@ function ProductsPageInner() {
                   </TextButton>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
         {filtered.length === 0 ? (
@@ -207,7 +241,17 @@ function ProductsPageInner() {
       </div>
 
       <div className="space-y-3 md:hidden">
-        {filtered.map((p) => (
+        {filtered.map((p) => {
+          const h = priceHistoryById.get(p.id);
+          const quoteRange =
+            h?.quoteMin != null && h?.quoteMax != null
+              ? `${formatCurrency(h.quoteMin)}～${formatCurrency(h.quoteMax)}`
+              : "—";
+          const contractRange =
+            h?.contractMin != null && h?.contractMax != null
+              ? `${formatCurrency(h.contractMin)}～${formatCurrency(h.contractMax)}`
+              : "—";
+          return (
           <div key={p.id} className="rounded border border-slate-200 bg-white p-3 text-sm shadow-sm">
             <div className="font-medium text-slate-900">{p.name}</div>
             <div className="mt-1 text-slate-600">编号 {p.code}</div>
@@ -217,6 +261,8 @@ function ProductsPageInner() {
             <div className="text-slate-600">
               单位 {p.unit} · 单价 {formatCurrency(p.price)}
             </div>
+            <div className="mt-1 text-slate-600">历史报价单价 {quoteRange}</div>
+            <div className="text-slate-600">历史合同单价 {contractRange}</div>
             <div className="mt-2 flex gap-2">
               <TextButton variant="secondary" onClick={() => openEdit(p)}>
                 修改
@@ -226,7 +272,8 @@ function ProductsPageInner() {
               </TextButton>
             </div>
           </div>
-        ))}
+        );
+        })}
         {filtered.length === 0 ? <p className="text-center text-sm text-slate-500">暂无商品</p> : null}
       </div>
 

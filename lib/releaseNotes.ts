@@ -17,6 +17,13 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.3",
+    datetime: "2026-04-09 12:00",
+    summary: [
+      "商品管理列表增加「历史报价单价」「历史合同单价」：根据已保存的报价单明细与合同标的明细，汇总每个商品的最低与最高成交单价（仅统计大于 0 的单价；报价行优先按商品 ID 匹配，否则按商品编码；合同行按商品编码匹配）。",
+    ],
+  },
+  {
     version: "0.1.2",
     datetime: "2026-04-08 16:45",
     summary: [
