@@ -22,7 +22,8 @@
     "nodemailer": "^8.0.4",
     "qrcode": "^1.5.4",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "tencentcloud-sdk-nodejs-ses": "^4.1.203"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
