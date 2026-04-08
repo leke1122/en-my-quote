@@ -551,7 +551,7 @@ export function ContractEditor() {
   async function exportImage() {
     const el = document.getElementById("contract-print");
     if (!el) return;
-    const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
+    const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -579,7 +579,7 @@ export function ContractEditor() {
   async function exportPdf() {
     const el = document.getElementById("contract-print");
     if (!el) return;
-    const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
+    const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,

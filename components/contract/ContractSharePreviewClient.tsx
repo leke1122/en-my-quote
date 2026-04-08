@@ -60,7 +60,7 @@ export function ContractSharePreviewClient() {
       const el = document.getElementById("contract-print");
       if (!el || cancelled) return;
       try {
-        const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
+        const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
         let canvas = await html2canvas(el, {
           scale: 2,
           useCORS: true,
