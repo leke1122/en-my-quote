@@ -62,6 +62,14 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   max-width: none !important;
   table-layout: auto !important;
 }
+#contract-print.quote-export-capture .quote-print-lines-desktop th,
+#contract-print.quote-export-capture .quote-print-lines-desktop td {
+  text-align: center !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-desktop td input,
+#contract-print.quote-export-capture .quote-print-lines-desktop td textarea {
+  text-align: center !important;
+}
 #contract-print.quote-export-capture .quote-print-logo-cell {
   height: auto !important;
   max-height: 5.5rem !important;
@@ -75,13 +83,13 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   height: auto !important;
   object-fit: contain !important;
 }
-/* 公章：按 A4 物理比例限制最大边约 38mm，保留上传图宽高比 */
+/* 公章：最大边约 52mm（与 measureSealInClone 一致），保留上传图宽高比 */
 #contract-print.quote-export-capture .contract-print-seal-wrap {
-  max-width: 48% !important;
+  max-width: 58% !important;
 }
 #contract-print.quote-export-capture .contract-print-seal {
-  max-height: 38mm !important;
-  max-width: 38mm !important;
+  max-height: 52mm !important;
+  max-width: 52mm !important;
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;

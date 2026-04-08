@@ -106,7 +106,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
         <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">【报价明细】</h3>
 
         <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
-          <table className="quote-table w-full min-w-[960px] border-collapse text-left text-sm">
+          <table className="quote-table w-full min-w-[960px] border-collapse text-center text-sm">
             <thead className="bg-slate-100 text-slate-700">
               <tr>
                 {showLineImages ? (
@@ -126,31 +126,31 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
               {lines.map((l) => (
                 <tr key={l.id} className="align-top">
                   {showLineImages ? (
-                    <td className="border border-slate-200 px-2 py-2">
+                    <td className="border border-slate-200 px-2 py-2 text-center">
                       {l.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={l.image} alt="" className="h-12 w-12 rounded object-cover" />
+                        <img src={l.image} alt="" className="mx-auto h-12 w-12 rounded object-cover" />
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
                   ) : null}
-                  <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                  <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                     {l.name}
                   </td>
-                  <td className="max-w-[8rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                  <td className="max-w-[8rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                     {l.model}
                   </td>
-                  <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                  <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                     {l.spec}
                   </td>
-                  <td className="whitespace-normal border border-slate-200 px-2 py-2 align-top">{l.unit}</td>
-                  <td className="border border-slate-200 px-2 py-2 align-top">{l.price}</td>
-                  <td className="border border-slate-200 px-2 py-2 align-top">{l.qty}</td>
-                  <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top">
+                  <td className="whitespace-normal border border-slate-200 px-2 py-2 align-top text-center">{l.unit}</td>
+                  <td className="border border-slate-200 px-2 py-2 align-top text-center">{l.price}</td>
+                  <td className="border border-slate-200 px-2 py-2 align-top text-center">{l.qty}</td>
+                  <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top text-center">
                     {formatCurrency(l.amount)}
                   </td>
-                  <td className="border border-slate-200 px-2 py-2 align-top text-sm leading-relaxed">
+                  <td className="border border-slate-200 px-2 py-2 align-top text-center text-sm leading-relaxed">
                     {l.remark?.trim() ? l.remark : "—"}
                   </td>
                 </tr>

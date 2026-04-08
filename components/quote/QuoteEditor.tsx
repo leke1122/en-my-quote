@@ -933,7 +933,7 @@ export function QuoteEditor() {
           <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">【报价明细】</h3>
 
           <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
-            <table className="quote-table w-full min-w-[960px] border-collapse text-left text-sm">
+            <table className="quote-table w-full min-w-[960px] border-collapse text-center text-sm">
               <thead className="bg-slate-100 text-slate-700">
                 <tr>
                   {showLineImages ? (
@@ -958,54 +958,54 @@ export function QuoteEditor() {
                 {lines.map((l) => (
                   <tr key={l.id} className="align-top">
                     {showLineImages ? (
-                      <td className="border border-slate-200 px-2 py-2">
+                      <td className="border border-slate-200 px-2 py-2 text-center">
                         {l.image ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={l.image} alt="" className="h-12 w-12 rounded object-cover" />
+                          <img src={l.image} alt="" className="mx-auto h-12 w-12 rounded object-cover" />
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
                     ) : null}
-                    <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                    <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                       {l.name}
                     </td>
-                    <td className="max-w-[8rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                    <td className="max-w-[8rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                       {l.model}
                     </td>
-                    <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top leading-relaxed">
+                    <td className="max-w-[10rem] whitespace-normal break-words border border-slate-200 px-2 py-2 align-top text-center leading-relaxed">
                       {l.spec}
                     </td>
-                    <td className="whitespace-normal border border-slate-200 px-2 py-2 align-top">
+                    <td className="whitespace-normal border border-slate-200 px-2 py-2 align-top text-center">
                       {l.unit}
                     </td>
-                    <td className="border border-slate-200 px-2 py-2 align-top">
+                    <td className="border border-slate-200 px-2 py-2 align-top text-center">
                       <input
                         type="text"
                         inputMode="decimal"
                         autoComplete="off"
-                        className="box-border w-24 min-h-9 rounded border border-slate-300 px-2 py-2 text-sm leading-normal"
+                        className="mx-auto box-border w-24 min-h-9 rounded border border-slate-300 px-2 py-2 text-center text-sm leading-normal"
                         value={displayLinePrice(l, lineTextDraft)}
                         onChange={(e) => setLinePriceInput(l.id, e.target.value)}
                       />
                     </td>
-                    <td className="border border-slate-200 px-2 py-2 align-top">
+                    <td className="border border-slate-200 px-2 py-2 align-top text-center">
                       <input
                         type="text"
                         inputMode="decimal"
                         autoComplete="off"
-                        className="box-border w-20 min-h-9 rounded border border-slate-300 px-2 py-2 text-sm leading-normal"
+                        className="mx-auto box-border w-20 min-h-9 rounded border border-slate-300 px-2 py-2 text-center text-sm leading-normal"
                         value={displayLineQty(l, lineTextDraft)}
                         onChange={(e) => setLineQtyInput(l.id, e.target.value)}
                       />
                     </td>
-                    <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top">
+                    <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top text-center">
                       {formatCurrency(l.amount)}
                     </td>
-                    <td className="border border-slate-200 px-2 py-2 align-top">
+                    <td className="border border-slate-200 px-2 py-2 align-top text-center">
                       <textarea
                         rows={2}
-                        className="box-border w-full min-w-[7rem] resize-y rounded border border-slate-300 px-2 py-2 text-sm leading-relaxed"
+                        className="mx-auto box-border w-full min-w-[7rem] resize-y rounded border border-slate-300 px-2 py-2 text-center text-sm leading-relaxed"
                         placeholder="备注"
                         value={l.remark ?? ""}
                         onChange={(e) => updateLine(l.id, { remark: e.target.value })}

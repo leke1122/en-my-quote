@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.4",
+    datetime: "2026-04-09 18:30",
+    summary: [
+      "合同导出/分享预览：公章按上传图比例与 A4 版心计算占位，并以原色叠印（与是否勾选「导出为彩色」无关）；修复部分手机 WebView 下章过小或呈灰阶的问题。",
+      "报价单与合同的桌面明细表单元格改为水平居中（含导出截图样式）。",
+    ],
+  },
+  {
     version: "0.1.3",
     datetime: "2026-04-09 12:00",
     summary: [

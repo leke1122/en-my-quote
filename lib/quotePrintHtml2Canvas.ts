@@ -39,6 +39,14 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   height: auto !important;
   object-fit: contain !important;
 }
+#quote-print.quote-export-capture .quote-table th,
+#quote-print.quote-export-capture .quote-table td {
+  text-align: center !important;
+}
+#quote-print.quote-export-capture .quote-table td input,
+#quote-print.quote-export-capture .quote-table td textarea {
+  text-align: center !important;
+}
 `.trim();
   clonedDoc.head.appendChild(exportFix);
 

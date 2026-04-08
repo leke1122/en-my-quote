@@ -20,7 +20,7 @@ import {
   contractTaxFromSubtotal,
 } from "@/lib/contractTotals";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
-import { compositeSealsInColorOnCanvas } from "@/lib/contractExportSeal";
+import { compositeSealsInColorOnCanvasAsync } from "@/lib/contractExportSeal";
 import { contractHtml2canvasOnClone } from "@/lib/contractPrintHtml2Canvas";
 import type { ContractSharePayload } from "@/lib/contractSharePayload";
 import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
@@ -568,8 +568,8 @@ export function ContractEditor() {
     });
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
-      compositeSealsInColorOnCanvas(canvas, sealImages);
     }
+    await compositeSealsInColorOnCanvasAsync(canvas, sealImages, el);
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/png", 1.0);
     a.download = `${contractNo || "contract"}.png`;
@@ -596,8 +596,8 @@ export function ContractEditor() {
     });
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
-      compositeSealsInColorOnCanvas(canvas, sealImages);
     }
+    await compositeSealsInColorOnCanvasAsync(canvas, sealImages, el);
     const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
     const pageW = pdf.internal.pageSize.getWidth();
@@ -808,7 +808,7 @@ export function ContractEditor() {
         </p>
 
         <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-left text-sm">
+          <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-center text-sm">
             <thead>
               <tr className="bg-slate-100">
                 <th className="border border-slate-800 px-1 py-2 font-medium">产品编号 NO</th>
@@ -827,28 +827,28 @@ export function ContractEditor() {
                 <tr key={l.id}>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
-                      className="w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={l.productCode}
                       onChange={(e) => updateLine(l.id, { productCode: e.target.value })}
                     />
                   </td>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
-                      className="w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={l.name}
                       onChange={(e) => updateLine(l.id, { name: e.target.value })}
                     />
                   </td>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
-                      className="w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-full min-w-[6rem] border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={l.modelSpec}
                       onChange={(e) => updateLine(l.id, { modelSpec: e.target.value })}
                     />
                   </td>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
-                      className="w-12 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-12 border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={l.unit}
                       onChange={(e) => updateLine(l.id, { unit: e.target.value })}
                     />
@@ -857,7 +857,7 @@ export function ContractEditor() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      className="w-16 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-16 border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={displayLineQty(l, lineTextDraft)}
                       onChange={(e) => setLineQtyInput(l.id, e.target.value)}
                     />
@@ -866,22 +866,22 @@ export function ContractEditor() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      className="w-20 border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-20 border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={displayLinePrice(l, lineTextDraft)}
                       onChange={(e) => setLinePriceInput(l.id, e.target.value)}
                     />
                   </td>
-                  <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top">
+                  <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top text-center">
                     {formatCurrency(l.amount)}
                   </td>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
-                      className="w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      className="mx-auto block w-full min-w-[4rem] border-0 bg-transparent px-1 py-0.5 text-center text-sm outline-none"
                       value={l.remark}
                       onChange={(e) => updateLine(l.id, { remark: e.target.value })}
                     />
                   </td>
-                  <td className="quote-no-print border border-slate-800 px-1 py-1 align-top">
+                  <td className="quote-no-print border border-slate-800 px-1 py-1 align-top text-center">
                     <TextButton variant="ghost" className="!px-0 text-red-700" onClick={() => removeLine(l.id)}>
                       删除
                     </TextButton>
@@ -1141,12 +1141,12 @@ export function ContractEditor() {
                 {partyField("税号", seller.taxId, (v) => setSeller((s) => ({ ...s, taxId: v })))}
               </div>
               {company?.sealImage ? (
-                <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
+                <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[58%] items-end justify-end sm:max-w-[55%]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={company.sealImage}
                     alt="公章"
-                    className="contract-print-seal h-auto max-h-[28mm] w-auto max-w-[28mm] object-contain opacity-[0.92] sm:max-h-[32mm] sm:max-w-[32mm]"
+                    className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
                   />
                 </div>
               ) : null}
@@ -1159,7 +1159,7 @@ export function ContractEditor() {
         {saveHint ? <p className="text-sm text-emerald-700">{saveHint}</p> : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={exportInColor} onChange={(e) => setExportInColor(e.target.checked)} />
-          导出为彩色（图片/PDF；不勾选时正文为黑白，公章仍保留红色/原色）
+          导出为彩色（图片/PDF；不勾选时正文为黑白；公章始终按上传原色叠印）
         </label>
         <div className="flex flex-wrap gap-2">
           <TextButton variant="primary" onClick={saveContract}>

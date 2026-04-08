@@ -87,7 +87,7 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
       </p>
 
       <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-left text-sm">
+        <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-center text-sm">
           <thead>
             <tr className="bg-slate-100">
               <th className="border border-slate-800 px-1 py-2 font-medium">产品编号 NO</th>
@@ -102,21 +102,21 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
           </thead>
           <tbody>
             {lines.map((l) => (
-              <tr key={l.id}>
-                <td className="border border-slate-800 px-1 py-1 align-top">{l.productCode || "—"}</td>
-                <td className="border border-slate-800 px-1 py-1 align-top whitespace-pre-wrap break-words">
+                <tr key={l.id}>
+                <td className="border border-slate-800 px-1 py-1 align-top text-center">{l.productCode || "—"}</td>
+                <td className="border border-slate-800 px-1 py-1 align-top text-center whitespace-pre-wrap break-words">
                   {l.name || "—"}
                 </td>
-                <td className="border border-slate-800 px-1 py-1 align-top whitespace-pre-wrap break-words">
+                <td className="border border-slate-800 px-1 py-1 align-top text-center whitespace-pre-wrap break-words">
                   {l.modelSpec || "—"}
                 </td>
-                <td className="border border-slate-800 px-1 py-1 align-top">{l.unit || "—"}</td>
-                <td className="border border-slate-800 px-1 py-1 align-top">{l.qty}</td>
-                <td className="border border-slate-800 px-1 py-1 align-top">{l.price}</td>
-                <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top">
+                <td className="border border-slate-800 px-1 py-1 align-top text-center">{l.unit || "—"}</td>
+                <td className="border border-slate-800 px-1 py-1 align-top text-center">{l.qty}</td>
+                <td className="border border-slate-800 px-1 py-1 align-top text-center">{l.price}</td>
+                <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top text-center">
                   {formatCurrency(l.amount)}
                 </td>
-                <td className="border border-slate-800 px-1 py-1 align-top whitespace-pre-wrap break-words">
+                <td className="border border-slate-800 px-1 py-1 align-top text-center whitespace-pre-wrap break-words">
                   {l.remark?.trim() ? l.remark : "—"}
                 </td>
               </tr>
@@ -222,12 +222,12 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
               <PartyRow label="税号" value={seller.taxId} />
             </div>
             {data.sellerSealImage ? (
-              <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
+              <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[58%] items-end justify-end sm:max-w-[55%]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={data.sellerSealImage}
                   alt="公章"
-                  className="contract-print-seal h-auto max-h-[28mm] w-auto max-w-[28mm] object-contain opacity-[0.92] sm:max-h-[32mm] sm:max-w-[32mm]"
+                  className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
                 />
               </div>
             ) : null}
