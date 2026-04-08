@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.2.1",
+    datetime: "2026-04-10 19:50",
+    summary: [
+      "品牌升级为「擎签云·商业报价合同系统」；首页与公开页按移动端优先重做视觉层次，统一卡片质感与渐变风格。",
+      "接入品牌 Logo（public/brand-logo.svg），并在首页首屏与公开页面入口统一展示。",
+    ],
+  },
+  {
     version: "0.2.0",
     datetime: "2026-04-10 19:10",
     summary: [

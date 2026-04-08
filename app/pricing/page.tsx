@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -18,15 +19,25 @@ export default function PricingPage() {
         </Link>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="surface-card p-5 sm:p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <Image src="/brand-logo.svg" alt="" width={36} height={36} className="h-9 w-9 rounded-lg border border-slate-200" />
+          <p className="text-sm font-semibold text-slate-900">擎签云订阅方案</p>
+        </div>
         <p className="text-sm leading-relaxed text-slate-700">
           当前采用激活码方式开通。具体价格、优惠活动、售后政策请以店铺页面展示为准。
         </p>
-        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-700">
-          <li>报价版：适合仅需报价管理与导出的团队。</li>
-          <li>报价+合同版：适合需要从报价延伸到合同管理的团队。</li>
-          <li>支持手机端操作，现场可直接导出报价/合同图片或 PDF。</li>
-        </ul>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <article className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <h2 className="text-sm font-semibold text-slate-900">报价版</h2>
+            <p className="mt-1 text-sm text-slate-700">适合仅需报价管理、导出和分享的团队。</p>
+          </article>
+          <article className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <h2 className="text-sm font-semibold text-slate-900">报价+合同版</h2>
+            <p className="mt-1 text-sm text-slate-700">适合从报价到合同全流程管理的团队。</p>
+          </article>
+        </div>
+        <p className="mt-4 text-sm text-slate-600">支持手机端操作，现场可直接导出报价/合同图片或 PDF。</p>
       </section>
     </div>
   );

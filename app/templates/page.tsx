@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -12,13 +13,16 @@ export default function TemplatesPage() {
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-4 py-8">
       <header className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">报价与合同模板说明</h1>
+        <div className="flex items-center gap-3">
+          <Image src="/brand-logo.svg" alt="" width={34} height={34} className="h-8 w-8 rounded-md border border-slate-200" />
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">报价与合同模板说明</h1>
+        </div>
         <Link href="/" className="text-sm text-slate-700 underline-offset-2 hover:underline">
           返回首页
         </Link>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="surface-card p-5 sm:p-6">
         <h2 className="text-base font-semibold text-slate-900">报价模板</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-700">
           包含商品名称、型号、规格、单位、单价、数量、金额、备注等字段。支持是否显示商品图片，支持导出为图片和 PDF。

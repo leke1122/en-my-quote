@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -31,7 +32,10 @@ export default function FaqPage() {
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-4 py-8">
       <header className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">常见问题</h1>
+        <div className="flex items-center gap-3">
+          <Image src="/brand-logo.svg" alt="" width={34} height={34} className="h-8 w-8 rounded-md border border-slate-200" />
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">常见问题</h1>
+        </div>
         <Link href="/" className="text-sm text-slate-700 underline-offset-2 hover:underline">
           返回首页
         </Link>
@@ -39,8 +43,8 @@ export default function FaqPage() {
 
       <section className="space-y-3">
         {faqs.map((item) => (
-          <article key={item.q} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">{item.q}</h2>
+          <article key={item.q} className="surface-card p-4 sm:p-5">
+            <h2 className="text-sm font-semibold text-slate-900 sm:text-base">{item.q}</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-700">{item.a}</p>
           </article>
         ))}

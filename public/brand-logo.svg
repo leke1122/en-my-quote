@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6FBFF"/>
+      <stop offset="1" stop-color="#EAF2FF"/>
+    </linearGradient>
+    <linearGradient id="zMain" x1="124" y1="110" x2="392" y2="402" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DD9FF"/>
+      <stop offset="0.55" stop-color="#3A8EE9"/>
+      <stop offset="1" stop-color="#265BBE"/>
+    </linearGradient>
+    <linearGradient id="zSoft" x1="162" y1="138" x2="426" y2="356" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A8ECFF"/>
+      <stop offset="1" stop-color="#62B8E8"/>
+    </linearGradient>
+    <linearGradient id="gray" x1="56" y1="156" x2="126" y2="318" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BFC9D3"/>
+      <stop offset="1" stop-color="#9EA9B3"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="72" fill="url(#bg)"/>
+  <path d="M126 140L278 140C334 140 348 188 320 216L196 332C170 360 184 396 236 396H332L386 424L244 424C146 424 126 358 172 312L298 198C320 176 312 160 278 160H190L126 140Z" fill="url(#zMain)"/>
+  <path d="M122 140L168 112L322 112C382 112 420 168 382 214L268 322C246 344 254 380 292 380H360L426 398L290 398C214 398 194 346 230 304L346 198C374 172 360 138 318 138H182L122 140Z" fill="url(#zSoft)" opacity="0.88"/>
+  <path d="M70 196C70 170 88 150 114 150C144 150 162 174 162 198V220C162 236 154 252 140 262L70 318V196Z" fill="url(#gray)"/>
+  <path d="M442 274V360C442 386 424 406 398 406H392C378 406 366 402 356 394L322 372C302 360 298 332 314 316L442 274Z" fill="#A9B3BC"/>
+</svg>
