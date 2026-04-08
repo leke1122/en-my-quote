@@ -45,6 +45,17 @@ function tuneQuoteTableLayout(root: HTMLElement) {
   }
 }
 
+function normalizeQuoteTableCells(root: HTMLElement) {
+  root.querySelectorAll(".quote-table thead th, .quote-table tbody td").forEach((cell) => {
+    const el = cell as HTMLElement;
+    if (el.querySelector(":scope > .quote-export-cell-box")) return;
+    const box = root.ownerDocument.createElement("div");
+    box.className = "quote-export-cell-box";
+    while (el.firstChild) box.appendChild(el.firstChild);
+    el.appendChild(box);
+  });
+}
+
 export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2CanvasCloneOpts) {
   const root = clonedDoc.getElementById("quote-print");
   if (!root) return;
@@ -112,10 +123,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 }
 #quote-print.quote-export-capture .quote-table th,
 #quote-print.quote-export-capture .quote-table td {
-  padding-top: 0.36rem !important;
-  padding-bottom: 0.36rem !important;
-  padding-left: 0.32rem !important;
-  padding-right: 0.32rem !important;
+  padding: 0 !important;
 }
 #quote-print.quote-export-capture .quote-table.quote-export-compact th,
 #quote-print.quote-export-capture .quote-table.quote-export-compact td {
@@ -130,6 +138,27 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   line-height: 1.2 !important;
   padding-top: 0.14rem !important;
   padding-bottom: 0.14rem !important;
+}
+#quote-print.quote-export-capture .quote-export-cell-box {
+  min-height: 2.2em !important;
+  padding: 0.36rem 0.32rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1.38 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+#quote-print.quote-export-capture .quote-table.quote-export-compact .quote-export-cell-box {
+  min-height: 2.05em !important;
+  padding: 0.3rem 0.24rem !important;
+}
+#quote-print.quote-export-capture .quote-table.quote-export-ultra .quote-export-cell-box {
+  min-height: 1.9em !important;
+  padding: 0.24rem 0.2rem !important;
 }
 `.trim();
   clonedDoc.head.appendChild(exportFix);
@@ -177,4 +206,5 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
     tx.replaceWith(div);
   });
   tuneQuoteTableLayout(root as HTMLElement);
+  normalizeQuoteTableCells(root as HTMLElement);
 }

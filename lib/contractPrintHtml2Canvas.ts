@@ -45,6 +45,17 @@ function tuneContractTableLayout(root: HTMLElement) {
   }
 }
 
+function normalizeContractTableCells(root: HTMLElement) {
+  root.querySelectorAll(".quote-print-lines-desktop table thead th, .quote-print-lines-desktop table tbody td").forEach((cell) => {
+    const el = cell as HTMLElement;
+    if (el.querySelector(":scope > .contract-export-cell-box")) return;
+    const box = root.ownerDocument.createElement("div");
+    box.className = "contract-export-cell-box";
+    while (el.firstChild) box.appendChild(el.firstChild);
+    el.appendChild(box);
+  });
+}
+
 export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHtml2CanvasCloneOpts) {
   resetContractExportCaptureMeta();
   const root = clonedDoc.getElementById("contract-print");
@@ -120,10 +131,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop th,
 #contract-print.quote-export-capture .quote-print-lines-desktop td {
-  padding-top: 0.36rem !important;
-  padding-bottom: 0.36rem !important;
-  padding-left: 0.32rem !important;
-  padding-right: 0.32rem !important;
+  padding: 0 !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-compact th,
 #contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-compact td {
@@ -163,6 +171,27 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   height: auto !important;
   object-fit: contain !important;
   opacity: 1 !important;
+}
+#contract-print.quote-export-capture .contract-export-cell-box {
+  min-height: 2.2em !important;
+  padding: 0.36rem 0.32rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1.38 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-compact .contract-export-cell-box {
+  min-height: 2.05em !important;
+  padding: 0.3rem 0.24rem !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-ultra .contract-export-cell-box {
+  min-height: 1.9em !important;
+  padding: 0.24rem 0.2rem !important;
 }
 `.trim();
   clonedDoc.head.appendChild(exportFix);
@@ -207,5 +236,6 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   });
 
   tuneContractTableLayout(root as HTMLElement);
+  normalizeContractTableCells(root as HTMLElement);
   finalizeContractExportLayoutFromClone(clonedDoc);
 }
