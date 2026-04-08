@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { APP_VERSION, RELEASE_NOTES_DISPLAY_LIMIT, getRecentReleaseNotes } from "@/lib/releaseNotes";
 
+/** 避免 CDN/边缘将本页缓存成旧版「当前版本」与更新列表 */
+export const dynamic = "force-dynamic";
+
 export default function ReleaseNotesPage() {
   const displayed = getRecentReleaseNotes();
 
