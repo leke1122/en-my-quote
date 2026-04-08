@@ -104,6 +104,12 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 #quote-print.quote-export-capture .quote-table td textarea {
   text-align: center !important;
 }
+#quote-print.quote-export-capture .quote-table td > .quote-export-cell-text {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 1.55em !important;
+}
 #quote-print.quote-export-capture .quote-table th,
 #quote-print.quote-export-capture .quote-table td {
   padding-top: 0.36rem !important;
@@ -145,7 +151,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
     const input = inp as HTMLInputElement;
     if (input.type === "hidden") return;
     const wrap = clonedDoc.createElement("span");
-    wrap.className = "inline-block min-h-[1.35em] whitespace-pre-wrap break-words align-middle leading-normal";
+    wrap.className = "quote-export-cell-text whitespace-pre-wrap break-words leading-normal";
     if (input.type === "date") {
       wrap.textContent = input.value || "—";
     } else if (input.type === "checkbox") {
@@ -158,7 +164,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   root.querySelectorAll("select").forEach((sel) => {
     const select = sel as HTMLSelectElement;
     const span = clonedDoc.createElement("span");
-    span.className = "block min-h-[1.35em] whitespace-pre-wrap break-words leading-normal py-1";
+    span.className = "quote-export-cell-text whitespace-pre-wrap break-words leading-normal";
     const opt = select.options[select.selectedIndex];
     span.textContent = opt ? opt.text : "—";
     select.replaceWith(span);
@@ -166,7 +172,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   root.querySelectorAll("textarea").forEach((ta) => {
     const tx = ta as HTMLTextAreaElement;
     const div = clonedDoc.createElement("div");
-    div.className = "whitespace-pre-wrap break-words text-sm leading-relaxed";
+    div.className = "quote-export-cell-text whitespace-pre-wrap break-words text-sm leading-relaxed";
     div.textContent = tx.value || "—";
     tx.replaceWith(div);
   });

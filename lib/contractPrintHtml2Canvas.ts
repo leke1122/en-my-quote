@@ -112,6 +112,12 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
 #contract-print.quote-export-capture .quote-print-lines-desktop td textarea {
   text-align: center !important;
 }
+#contract-print.quote-export-capture .quote-print-lines-desktop td > .contract-export-cell-text {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 1.55em !important;
+}
 #contract-print.quote-export-capture .quote-print-lines-desktop th,
 #contract-print.quote-export-capture .quote-print-lines-desktop td {
   padding-top: 0.36rem !important;
@@ -174,8 +180,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
     const input = inp as HTMLInputElement;
     if (input.type === "hidden") return;
     const wrap = clonedDoc.createElement("span");
-    wrap.className =
-      "inline-block min-h-[1.35em] whitespace-pre-wrap break-words align-middle leading-normal";
+    wrap.className = "contract-export-cell-text whitespace-pre-wrap break-words leading-normal";
     if (input.type === "date") {
       wrap.textContent = input.value ? formatSigningDateChinese(input.value) : "—";
     } else if (input.type === "checkbox") {
@@ -188,7 +193,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   root.querySelectorAll("select").forEach((sel) => {
     const select = sel as HTMLSelectElement;
     const span = clonedDoc.createElement("span");
-    span.className = "block min-h-[1.35em] whitespace-pre-wrap break-words leading-normal py-1";
+    span.className = "contract-export-cell-text whitespace-pre-wrap break-words leading-normal";
     const opt = select.options[select.selectedIndex];
     span.textContent = opt ? opt.text : "—";
     select.replaceWith(span);
@@ -196,7 +201,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   root.querySelectorAll("textarea").forEach((ta) => {
     const tx = ta as HTMLTextAreaElement;
     const div = clonedDoc.createElement("div");
-    div.className = "whitespace-pre-wrap break-words text-sm leading-relaxed";
+    div.className = "contract-export-cell-text whitespace-pre-wrap break-words text-sm leading-relaxed";
     div.textContent = tx.value || "—";
     tx.replaceWith(div);
   });
