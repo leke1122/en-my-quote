@@ -4,6 +4,7 @@
  */
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { rateLimitCheck, requestIp } from "@/lib/authRateLimit";
 import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
 import { COOKIE_NAME, createSessionToken } from "@/lib/sessionJwt";
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
     .toLowerCase();
   const password = String(body.password ?? "");
   const code = String(body.code ?? "").trim();
+  const ip = requestIp(request);
+  const rl = rateLimitCheck(`register-email:${ip}:${email}`, { max: 12, windowMs: 10 * 60 * 1000 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { ok: false, error: `尝试次数过多，请 ${rl.retryAfterSec} 秒后重试` },
+      { status: 429 }
+    );
+  }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { rateLimitCheck, requestIp } from "@/lib/authRateLimit";
 import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -22,6 +23,14 @@ export async function POST(request: Request) {
     .toLowerCase();
   const code = String(body.code ?? "").trim();
   const newPassword = String(body.newPassword ?? "");
+  const ip = requestIp(request);
+  const rl = rateLimitCheck(`reset:${ip}:${email}`, { max: 12, windowMs: 10 * 60 * 1000 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { ok: false, error: `尝试次数过多，请 ${rl.retryAfterSec} 秒后重试` },
+      { status: 429 }
+    );
+  }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });

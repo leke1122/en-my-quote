@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.9",
+    datetime: "2026-04-10 18:10",
+    summary: [
+      "登录体验优化：支持携带 redirect 参数，登录成功后自动返回来源页面。",
+      "安全加固：/settings 新增服务端路由守卫；登录、验证码注册、重置密码接口增加基础限流，降低暴力尝试风险。",
+    ],
+  },
+  {
     version: "0.1.8",
     datetime: "2026-04-10 01:30",
     summary: [

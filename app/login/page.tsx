@@ -13,6 +13,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+  function redirectTarget(): string {
+    if (typeof window === "undefined") return "/settings";
+    const raw = new URLSearchParams(window.location.search).get("redirect") || "";
+    if (!raw.startsWith("/")) return "/settings";
+    if (raw.startsWith("//")) return "/settings";
+    if (raw.startsWith("/api/")) return "/settings";
+    return raw;
+  }
+
   async function login() {
     setMsg("");
     setLoading(true);
@@ -29,7 +38,7 @@ export default function LoginPage() {
         return;
       }
       markPostLoginSubscriptionCheck();
-      router.push("/settings");
+      router.push(redirectTarget());
       router.refresh();
     } catch {
       setMsg("网络错误");

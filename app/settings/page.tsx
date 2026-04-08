@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DataBackupSection } from "@/components/settings/DataBackupSection";
 import { PersonalInfoSection } from "@/components/settings/PersonalInfoSection";
@@ -9,6 +10,7 @@ import { getSettings, setSettings } from "@/lib/storage";
 import type { AppSettings } from "@/lib/types";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [form, setForm] = useState<AppSettings>(getSettings());
 
   useEffect(() => {
@@ -20,9 +22,28 @@ export default function SettingsPage() {
     alert("已保存到本地");
   }
 
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 py-6">
-      <PageHeader title="设置" />
+      <PageHeader
+        title="设置"
+        actions={
+          <TextButton variant="secondary" className="text-red-700" onClick={() => void logout()}>
+            退出账号
+          </TextButton>
+        }
+      />
 
       <PersonalInfoSection />
       <DataBackupSection />
