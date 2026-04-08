@@ -110,13 +110,6 @@ export function PersonalInfoSection() {
     await refresh();
   }
 
-  async function logout() {
-    setMsg("");
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    setMsg("已退出。");
-    await refresh();
-  }
-
   async function redeem() {
     setMsg("");
     setRedeeming(true);
@@ -313,9 +306,6 @@ export function PersonalInfoSection() {
             </div>
           </div>
 
-          <TextButton variant="secondary" onClick={() => void logout()}>
-            退出账号
-          </TextButton>
         </div>
       ) : null}
 

@@ -40,6 +40,9 @@ export function HomeAuthLinks() {
   const loggedIn = me && "loggedIn" in me && me.loggedIn && me.cloud;
 
   if (loggedIn) {
+    const email = me.user.email || "";
+    const first = email.trim().charAt(0);
+    const avatarText = first ? first.toUpperCase() : "U";
     const sub = "subscription" in me ? me.subscription : null;
     let expiryLabel = "未激活";
     if (sub?.plan === "lifetime") {
@@ -51,9 +54,12 @@ export function HomeAuthLinks() {
     return (
       <Link
         href="/settings"
+        title={email}
         className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800"
       >
-        <span className="max-w-[10rem] truncate">{me.user.email}</span>
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/12 text-xs font-bold ring-1 ring-white/20">
+          {avatarText}
+        </span>
         <span className="hidden text-xs text-slate-200 sm:inline">{expiryLabel}</span>
       </Link>
     );
