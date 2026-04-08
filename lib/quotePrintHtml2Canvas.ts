@@ -32,16 +32,83 @@ function tuneQuoteTableLayout(root: HTMLElement) {
   if (rows.length >= 18 || longest >= 42) {
     table.classList.add("quote-export-ultra");
   }
+
+  const normalizeCellText = (s: string) => s.replace(/\s+/g, "").trim();
+  const isMeaningful = (s: string) => {
+    const t = normalizeCellText(s);
+    if (!t) return false;
+    if (t === "—") return false;
+    return true;
+  };
+  const colIsEmpty = (idx: number) => {
+    for (const row of Array.from(rows)) {
+      const cells = row.querySelectorAll("td");
+      const cell = cells.item(idx);
+      if (!cell) continue;
+      if (isMeaningful(cell.textContent || "")) return false;
+    }
+    return true;
+  };
+  const adjustForEmptyColumns = (base: number[]) => {
+    if (base.length < 2) return base;
+    const emptyFlags = base.map((_, i) => colIsEmpty(i));
+    // 不动图片列（若存在）和主“名称/型号/规格/备注”列；仅当整列为空时压缩它。
+    const protect = new Set<number>();
+    if (base.length === 9) protect.add(0); // 图
+    // 无图：0 名称 1 型号 2 规格 ... 7 备注；有图：1 名称 2 型号 3 规格 ... 8 备注
+    const nameIdx = base.length === 9 ? 1 : 0;
+    const modelIdx = base.length === 9 ? 2 : 1;
+    const specIdx = base.length === 9 ? 3 : 2;
+    const remarkIdx = base.length === 9 ? 8 : 7;
+    [nameIdx, modelIdx, specIdx, remarkIdx].forEach((i) => protect.add(i));
+
+    const out = [...base];
+    let freed = 0;
+    for (let i = 0; i < out.length; i++) {
+      if (protect.has(i)) continue;
+      if (emptyFlags[i]) {
+        const minW = i === 0 && base.length === 9 ? 6 : 4; // 图列保留 6%，其他空列 4%
+        if (out[i] > minW) {
+          freed += out[i] - minW;
+          out[i] = minW;
+        }
+      }
+    }
+    if (freed <= 0) return out;
+    // 把释放出来的宽度优先补到名称/规格/备注
+    const boost = [
+      { i: nameIdx, w: 0.42 },
+      { i: specIdx, w: 0.28 },
+      { i: remarkIdx, w: 0.2 },
+      { i: modelIdx, w: 0.1 },
+    ];
+    for (const b of boost) {
+      out[b.i] += Math.round(freed * b.w * 10) / 10;
+    }
+    // 归一化为 100（避免小数误差）
+    const sum = out.reduce((a, b) => a + b, 0);
+    if (sum !== 100) out[nameIdx] += 100 - sum;
+    return out;
+  };
+
   const colCount = table.querySelectorAll("thead th").length;
   // 无图模式：名称/型号/规格/备注给更多空间；有图模式额外预留缩略图列。
   if (colCount === 8) {
-    if (rows.length >= 18 || longest >= 42) ensureColgroup([20, 15, 20, 6, 9, 7, 10, 13]);
-    else if (rows.length >= 10 || longest >= 24) ensureColgroup([19, 14, 19, 7, 10, 7, 11, 13]);
-    else ensureColgroup([18, 13, 18, 7, 11, 8, 12, 13]);
+    const base =
+      rows.length >= 18 || longest >= 42
+        ? [20, 15, 20, 6, 9, 7, 10, 13]
+        : rows.length >= 10 || longest >= 24
+          ? [19, 14, 19, 7, 10, 7, 11, 13]
+          : [18, 13, 18, 7, 11, 8, 12, 13];
+    ensureColgroup(adjustForEmptyColumns(base));
   } else if (colCount === 9) {
-    if (rows.length >= 18 || longest >= 42) ensureColgroup([8, 18, 14, 19, 6, 9, 7, 9, 10]);
-    else if (rows.length >= 10 || longest >= 24) ensureColgroup([8, 17, 13, 18, 6, 10, 7, 10, 11]);
-    else ensureColgroup([8, 16, 12, 17, 7, 10, 8, 11, 11]);
+    const base =
+      rows.length >= 18 || longest >= 42
+        ? [8, 18, 14, 19, 6, 9, 7, 9, 10]
+        : rows.length >= 10 || longest >= 24
+          ? [8, 17, 13, 18, 6, 10, 7, 10, 11]
+          : [8, 16, 12, 17, 7, 10, 8, 11, 11];
+    ensureColgroup(adjustForEmptyColumns(base));
   }
 }
 
@@ -115,12 +182,6 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 #quote-print.quote-export-capture .quote-table td textarea {
   text-align: center !important;
 }
-#quote-print.quote-export-capture .quote-table td > .quote-export-cell-text {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 1.55em !important;
-}
 #quote-print.quote-export-capture .quote-table th,
 #quote-print.quote-export-capture .quote-table td {
   padding: 0 !important;
@@ -141,12 +202,12 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 }
 #quote-print.quote-export-capture .quote-export-cell-box {
   min-height: 2.2em !important;
-  padding: 0.36rem 0.32rem !important;
+  padding: 0.44rem 0.38rem !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
-  line-height: 1.38 !important;
+  line-height: 1.42 !important;
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
@@ -154,11 +215,11 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 }
 #quote-print.quote-export-capture .quote-table.quote-export-compact .quote-export-cell-box {
   min-height: 2.05em !important;
-  padding: 0.3rem 0.24rem !important;
+  padding: 0.34rem 0.28rem !important;
 }
 #quote-print.quote-export-capture .quote-table.quote-export-ultra .quote-export-cell-box {
   min-height: 1.9em !important;
-  padding: 0.24rem 0.2rem !important;
+  padding: 0.28rem 0.22rem !important;
 }
 `.trim();
   clonedDoc.head.appendChild(exportFix);

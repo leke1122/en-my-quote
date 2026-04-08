@@ -17,6 +17,13 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.7",
+    datetime: "2026-04-10 00:10",
+    summary: [
+      "报价导出图片/PDF：单元格留白加大，文字不再贴边；对“整列为空”的列自动收窄，并把空间优先让给名称/规格/备注等内容列，整体更美观。",
+    ],
+  },
+  {
     version: "0.1.6",
     datetime: "2026-04-09 23:10",
     summary: [
