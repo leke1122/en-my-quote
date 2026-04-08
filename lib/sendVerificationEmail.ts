@@ -4,8 +4,8 @@ import { ses } from "tencentcloud-sdk-nodejs-ses";
 export type VerificationEmailScene = "register" | "reset-password";
 
 function subjectFor(scene: VerificationEmailScene): string {
-  if (scene === "reset-password") return "智序商业报价合同生成系统 — 找回密码验证码";
-  return "智序商业报价合同生成系统 — 注册验证码";
+  if (scene === "reset-password") return "智序签单 — 找回密码验证码";
+  return "智序签单 — 注册验证码";
 }
 
 function contentFor(scene: VerificationEmailScene, code: string): { html: string; textPlain: string } {

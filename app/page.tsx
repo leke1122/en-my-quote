@@ -69,10 +69,10 @@ export default function Home() {
         <div className="relative grid gap-6 sm:grid-cols-[1.15fr_0.85fr] sm:items-center">
           <div>
             <p className="mb-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-              擎签云 · 商业效率工具
+              智序签单 · 商业效率工具
             </p>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              擎签云·商业报价合同系统
+              智序签单
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
               聚焦报价与合同流程，帮助中小团队在手机与电脑上快速完成资料维护、单据生成、导出分享与历史追溯。
@@ -95,7 +95,7 @@ export default function Home() {
           <div className="mx-auto w-full max-w-[220px] sm:max-w-[280px]">
             <Image
               src="/brand-logo.svg"
-              alt="擎签云 Logo"
+              alt="智序签单 Logo"
               width={512}
               height={512}
               className="h-auto w-full rounded-2xl border border-slate-200/80 bg-white/80 p-2 shadow-sm"
