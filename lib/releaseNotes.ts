@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.2.0",
+    datetime: "2026-04-10 19:10",
+    summary: [
+      "补齐站点收录基础：新增 robots 与 sitemap，并完善全站 metadata（title/description/canonical/open graph）。",
+      "新增公开可索引内容页（价格说明、常见问题、模板说明），首页信息结构优化并增加公开导航入口。",
+    ],
+  },
+  {
     version: "0.1.9",
     datetime: "2026-04-10 18:10",
     summary: [

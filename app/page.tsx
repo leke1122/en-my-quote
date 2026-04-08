@@ -36,6 +36,18 @@ export default function Home() {
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-10">
       <header className="mb-6 flex items-start justify-end gap-3 sm:mb-8">
         <Link
+          href="/pricing"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          价格说明
+        </Link>
+        <Link
+          href="/faq"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          常见问题
+        </Link>
+        <Link
           href="/help"
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
         >
@@ -55,7 +67,7 @@ export default function Home() {
           智序商业报价合同生成系统
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          简洁高效 移动端优化 随时报价随时合同 数据安全支持导出
+          面向中小团队的报价单与销售合同生成工具，支持手机端操作、历史记录查询、图片/PDF 导出与数据备份。
         </p>
       </div>
 
@@ -69,6 +81,25 @@ export default function Home() {
       </div>
 
       <HomePricingAndShop />
+
+      <section className="mt-8 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm sm:grid-cols-3">
+        <div>
+          <h2 className="font-semibold text-slate-900">适用场景</h2>
+          <p className="mt-1 leading-relaxed">设备销售、工程项目、贸易分销等需要快速出具报价和合同的业务。</p>
+        </div>
+        <div>
+          <h2 className="font-semibold text-slate-900">核心能力</h2>
+          <p className="mt-1 leading-relaxed">资料管理、报价合同一体化、移动端导出、只读分享、本地数据备份。</p>
+        </div>
+        <div>
+          <h2 className="font-semibold text-slate-900">了解更多</h2>
+          <p className="mt-1 leading-relaxed">
+            查看 <Link href="/templates" className="underline-offset-2 hover:underline">模板说明</Link>、
+            <Link href="/faq" className="ml-1 underline-offset-2 hover:underline">常见问题</Link> 与
+            <Link href="/release-notes" className="ml-1 underline-offset-2 hover:underline">版本说明</Link>。
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
