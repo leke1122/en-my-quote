@@ -47,7 +47,7 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
     >
       <h2 className="mb-6 text-center text-2xl font-bold tracking-widest text-slate-900">销售合同</h2>
 
-      <div className="mb-4 grid gap-4 sm:grid-cols-2">
+      <div className="contract-print-header-grid mb-4 grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 text-sm">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="shrink-0 font-medium text-slate-700">需方：</span>
@@ -58,7 +58,7 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
             <span className="text-slate-900">{seller.name || "—"}</span>
           </div>
         </div>
-        <div className="space-y-2 text-sm sm:text-right">
+        <div className="contract-print-header-right space-y-2 text-sm sm:text-right">
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <span className="text-slate-600">合同编号</span>
             <span className="min-w-[10rem] rounded border border-slate-200 bg-slate-50/80 px-2 py-1 text-left sm:text-right">
@@ -80,7 +80,7 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
         </div>
       </div>
 
-      <p className="mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
+      <p className="contract-print-intro mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
 
       <p className="mb-2 text-sm font-semibold text-slate-900">
         一、合同标的（产品名称、型号（规格）、单位、数量、单价、金额）
@@ -197,7 +197,7 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
 
       <div className="mt-10 border-t-2 border-slate-800 pt-6">
         <p className="mb-4 text-center text-sm font-semibold text-slate-900">以下为双方详细信息（签章页）</p>
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="contract-print-parties-grid grid gap-6 sm:grid-cols-2">
           <div className="rounded border border-slate-300 p-4">
             <p className="mb-3 text-sm font-bold text-slate-900">甲方（需方）</p>
             <div className="grid gap-2">
@@ -222,12 +222,12 @@ export function ContractShareReadonlyPrint({ data }: { data: ContractSharePayloa
               <PartyRow label="税号" value={seller.taxId} />
             </div>
             {data.sellerSealImage ? (
-              <div className="pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
+              <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={data.sellerSealImage}
                   alt="公章"
-                  className="contract-print-seal h-auto max-h-20 w-auto object-contain opacity-[0.92] sm:max-h-24"
+                  className="contract-print-seal h-auto max-h-[28mm] w-auto max-w-[28mm] object-contain opacity-[0.92] sm:max-h-[32mm] sm:max-w-[32mm]"
                 />
               </div>
             ) : null}

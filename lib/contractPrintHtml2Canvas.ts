@@ -1,3 +1,7 @@
+import {
+  finalizeContractExportLayoutFromClone,
+  resetContractExportCaptureMeta,
+} from "@/lib/contractExportSeal";
 import { formatSigningDateChinese } from "@/lib/signingDate";
 
 export interface ContractHtml2CanvasCloneOpts {
@@ -5,25 +9,58 @@ export interface ContractHtml2CanvasCloneOpts {
 }
 
 export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHtml2CanvasCloneOpts) {
+  resetContractExportCaptureMeta();
   const root = clonedDoc.getElementById("contract-print");
   if (!root) return;
   const el = root as HTMLElement;
   el.classList.add("quote-export-capture");
   const exportFix = clonedDoc.createElement("style");
   exportFix.textContent = `
+/* 固定为 A4 纸宽（210mm），避免 max-content + 移动端视口导致明细表被压窄 */
 #contract-print.quote-export-capture {
-  max-width: none !important;
-  width: max-content !important;
+  max-width: 210mm !important;
+  width: 210mm !important;
+  min-width: 210mm !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box !important;
+}
+#contract-print.quote-export-capture .contract-print-header-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 1rem !important;
+}
+#contract-print.quote-export-capture .contract-print-header-right {
+  text-align: right !important;
+}
+#contract-print.quote-export-capture .contract-print-header-right .flex {
+  justify-content: flex-end !important;
+}
+#contract-print.quote-export-capture .contract-print-intro {
+  text-indent: 0 !important;
+}
+#contract-print.quote-export-capture .contract-print-parties-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 1.5rem !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-wrap {
   overflow: visible !important;
   max-height: none !important;
+  width: 100% !important;
+  display: block !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop {
   display: block !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-mobile {
   display: none !important;
+}
+#contract-print.quote-export-capture .quote-print-lines-desktop table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  table-layout: auto !important;
 }
 #contract-print.quote-export-capture .quote-print-logo-cell {
   height: auto !important;
@@ -38,12 +75,17 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   height: auto !important;
   object-fit: contain !important;
 }
+/* 公章：按 A4 物理比例限制最大边约 38mm，保留上传图宽高比 */
+#contract-print.quote-export-capture .contract-print-seal-wrap {
+  max-width: 48% !important;
+}
 #contract-print.quote-export-capture .contract-print-seal {
-  max-height: 5.5rem !important;
-  max-width: 38% !important;
+  max-height: 38mm !important;
+  max-width: 38mm !important;
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;
+  opacity: 1 !important;
 }
 `.trim();
   clonedDoc.head.appendChild(exportFix);
@@ -87,4 +129,6 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
     div.textContent = tx.value || "—";
     tx.replaceWith(div);
   });
+
+  finalizeContractExportLayoutFromClone(clonedDoc);
 }

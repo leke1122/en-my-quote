@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ContractShareReadonlyPrint } from "@/components/contract/ContractShareReadonlyPrint";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
+import { compositeSealsInColorOnCanvas } from "@/lib/contractExportSeal";
 import { contractHtml2canvasOnClone } from "@/lib/contractPrintHtml2Canvas";
 import { parseContractSharePayload, type ContractSharePayload } from "@/lib/contractSharePayload";
 import { decodeSharePayload } from "@/lib/share";
@@ -59,6 +60,7 @@ export function ContractSharePreviewClient() {
       const el = document.getElementById("contract-print");
       if (!el || cancelled) return;
       try {
+        const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
         let canvas = await html2canvas(el, {
           scale: 2,
           useCORS: true,
@@ -74,6 +76,7 @@ export function ContractSharePreviewClient() {
             }),
         });
         canvas = canvasGrayscaleForExport(canvas);
+        compositeSealsInColorOnCanvas(canvas, sealImages);
         if (!cancelled) {
           setImgUrl(canvas.toDataURL("image/png", 1.0));
           setCapErr("");

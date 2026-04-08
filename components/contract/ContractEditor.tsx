@@ -20,6 +20,7 @@ import {
   contractTaxFromSubtotal,
 } from "@/lib/contractTotals";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
+import { compositeSealsInColorOnCanvas } from "@/lib/contractExportSeal";
 import { contractHtml2canvasOnClone } from "@/lib/contractPrintHtml2Canvas";
 import type { ContractSharePayload } from "@/lib/contractSharePayload";
 import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
@@ -550,6 +551,7 @@ export function ContractEditor() {
   async function exportImage() {
     const el = document.getElementById("contract-print");
     if (!el) return;
+    const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -566,6 +568,7 @@ export function ContractEditor() {
     });
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
+      compositeSealsInColorOnCanvas(canvas, sealImages);
     }
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/png", 1.0);
@@ -576,6 +579,7 @@ export function ContractEditor() {
   async function exportPdf() {
     const el = document.getElementById("contract-print");
     if (!el) return;
+    const sealImages = [...el.querySelectorAll("img.contract-print-seal")] as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -592,6 +596,7 @@ export function ContractEditor() {
     });
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
+      compositeSealsInColorOnCanvas(canvas, sealImages);
     }
     const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
@@ -748,7 +753,7 @@ export function ContractEditor() {
       >
         <h2 className="mb-6 text-center text-2xl font-bold tracking-widest text-slate-900">销售合同</h2>
 
-        <div className="mb-4 grid gap-4 sm:grid-cols-2">
+        <div className="contract-print-header-grid mb-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="shrink-0 font-medium text-slate-700">需方：</span>
@@ -759,7 +764,7 @@ export function ContractEditor() {
               <span className="text-slate-900">{company?.name || seller.name || "—"}</span>
             </div>
           </div>
-          <div className="space-y-2 text-sm sm:text-right">
+          <div className="contract-print-header-right space-y-2 text-sm sm:text-right">
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               <span className="text-slate-600">合同编号</span>
               <input
@@ -796,7 +801,7 @@ export function ContractEditor() {
           </div>
         </div>
 
-        <p className="mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
+        <p className="contract-print-intro mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
 
         <p className="mb-2 text-sm font-semibold text-slate-900">
           一、合同标的（产品名称、型号（规格）、单位、数量、单价、金额）
@@ -1111,7 +1116,7 @@ export function ContractEditor() {
 
         <div className="mt-10 border-t-2 border-slate-800 pt-6">
           <p className="mb-4 text-center text-sm font-semibold text-slate-900">以下为双方详细信息（签章页）</p>
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="contract-print-parties-grid grid gap-6 sm:grid-cols-2">
             <div className="rounded border border-slate-300 p-4">
               <p className="mb-3 text-sm font-bold text-slate-900">甲方（需方）</p>
               <div className="grid gap-2">
@@ -1136,12 +1141,12 @@ export function ContractEditor() {
                 {partyField("税号", seller.taxId, (v) => setSeller((s) => ({ ...s, taxId: v })))}
               </div>
               {company?.sealImage ? (
-                <div className="pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
+                <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[42%] items-end justify-end sm:max-w-[38%]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={company.sealImage}
                     alt="公章"
-                    className="contract-print-seal h-auto max-h-20 w-auto object-contain opacity-[0.92] sm:max-h-24"
+                    className="contract-print-seal h-auto max-h-[28mm] w-auto max-w-[28mm] object-contain opacity-[0.92] sm:max-h-[32mm] sm:max-w-[32mm]"
                   />
                 </div>
               ) : null}
@@ -1154,7 +1159,7 @@ export function ContractEditor() {
         {saveHint ? <p className="text-sm text-emerald-700">{saveHint}</p> : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={exportInColor} onChange={(e) => setExportInColor(e.target.checked)} />
-          导出为彩色（图片/PDF；不勾选为黑白）
+          导出为彩色（图片/PDF；不勾选时正文为黑白，公章仍保留红色/原色）
         </label>
         <div className="flex flex-wrap gap-2">
           <TextButton variant="primary" onClick={saveContract}>
