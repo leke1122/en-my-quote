@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.5",
+    datetime: "2026-04-09 22:30",
+    summary: [
+      "修复报价单/合同导出图片与 PDF 在内容较多时出现串行、溢出、遮挡的问题：导出按 A4 固定版心并启用自适应紧凑布局（依据明细行数与文本长度自动降低字号和内边距）。",
+      "报价与合同导出的明细表统一居中、自动换行与断词策略，降低长型号/备注导致的错位风险。",
+    ],
+  },
+  {
     version: "0.1.4",
     datetime: "2026-04-09 18:30",
     summary: [

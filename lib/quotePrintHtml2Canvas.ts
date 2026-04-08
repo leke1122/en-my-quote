@@ -5,6 +5,25 @@ export interface QuoteHtml2CanvasCloneOpts {
   hasExtraFees: boolean;
 }
 
+function tuneQuoteTableLayout(root: HTMLElement) {
+  const table = root.querySelector(".quote-table");
+  if (!table) return;
+  const rows = table.querySelectorAll("tbody tr");
+  let longest = 0;
+  rows.forEach((row) => {
+    row.querySelectorAll("td").forEach((cell) => {
+      const text = (cell.textContent || "").replace(/\s+/g, "");
+      if (text.length > longest) longest = text.length;
+    });
+  });
+  if (rows.length >= 10 || longest >= 24) {
+    table.classList.add("quote-export-compact");
+  }
+  if (rows.length >= 18 || longest >= 42) {
+    table.classList.add("quote-export-ultra");
+  }
+}
+
 export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2CanvasCloneOpts) {
   const root = clonedDoc.getElementById("quote-print");
   if (!root) return;
@@ -13,12 +32,18 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   const exportFix = clonedDoc.createElement("style");
   exportFix.textContent = `
 #quote-print.quote-export-capture {
-  max-width: none !important;
-  width: max-content !important;
+  max-width: 210mm !important;
+  width: 210mm !important;
+  min-width: 210mm !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box !important;
 }
 #quote-print.quote-export-capture .quote-print-lines-wrap {
   overflow: visible !important;
   max-height: none !important;
+  width: 100% !important;
+  display: block !important;
 }
 #quote-print.quote-export-capture .quote-print-lines-desktop {
   display: block !important;
@@ -42,10 +67,40 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 #quote-print.quote-export-capture .quote-table th,
 #quote-print.quote-export-capture .quote-table td {
   text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  line-height: 1.35 !important;
+}
+#quote-print.quote-export-capture .quote-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  table-layout: fixed !important;
 }
 #quote-print.quote-export-capture .quote-table td input,
 #quote-print.quote-export-capture .quote-table td textarea {
   text-align: center !important;
+}
+#quote-print.quote-export-capture .quote-table th,
+#quote-print.quote-export-capture .quote-table td {
+  padding-top: 0.28rem !important;
+  padding-bottom: 0.28rem !important;
+}
+#quote-print.quote-export-capture .quote-table.quote-export-compact th,
+#quote-print.quote-export-capture .quote-table.quote-export-compact td {
+  font-size: 11px !important;
+  line-height: 1.26 !important;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+#quote-print.quote-export-capture .quote-table.quote-export-ultra th,
+#quote-print.quote-export-capture .quote-table.quote-export-ultra td {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  padding-top: 0.14rem !important;
+  padding-bottom: 0.14rem !important;
 }
 `.trim();
   clonedDoc.head.appendChild(exportFix);
@@ -92,4 +147,5 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
     div.textContent = tx.value || "—";
     tx.replaceWith(div);
   });
+  tuneQuoteTableLayout(root as HTMLElement);
 }
