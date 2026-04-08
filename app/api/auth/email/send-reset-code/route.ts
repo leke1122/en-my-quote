@@ -28,9 +28,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
   }
 
-  const exists = await prisma.user.findUnique({ where: { email } });
-  if (exists) {
-    return NextResponse.json({ ok: false, error: "该邮箱已注册，请直接登录" }, { status: 409 });
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    // 不暴露账号是否存在
+    return NextResponse.json({ ok: true, message: "若该邮箱已注册，验证码将发送到邮箱（含垃圾邮件箱）" });
   }
 
   const latest = await prisma.emailVerificationCode.findFirst({
@@ -49,15 +50,19 @@ export async function POST(request: Request) {
     data: { email, code, expiresAt },
   });
 
-  const sent = await sendVerificationEmail(email, code, "register");
+  const sent = await sendVerificationEmail(email, code, "reset-password");
   if (!sent.ok) {
     await prisma.emailVerificationCode.deleteMany({ where: { email } });
     return NextResponse.json({ ok: false, error: sent.error }, { status: 503 });
   }
 
-  const payload: Record<string, unknown> = { ok: true, message: "验证码已发送，请查收邮箱（含垃圾邮件箱）" };
+  const payload: Record<string, unknown> = {
+    ok: true,
+    message: "若该邮箱已注册，验证码将发送到邮箱（含垃圾邮件箱）",
+  };
   if (sent.via === "dev" && process.env.NODE_ENV === "development") {
     payload.debugCode = code;
   }
   return NextResponse.json(payload);
 }
+

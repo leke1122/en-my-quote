@@ -1,7 +1,25 @@
 import nodemailer from "nodemailer";
 import { ses } from "tencentcloud-sdk-nodejs-ses";
 
-const SUBJECT = "智序商业报价合同生成系统 — 注册验证码";
+export type VerificationEmailScene = "register" | "reset-password";
+
+function subjectFor(scene: VerificationEmailScene): string {
+  if (scene === "reset-password") return "智序商业报价合同生成系统 — 找回密码验证码";
+  return "智序商业报价合同生成系统 — 注册验证码";
+}
+
+function contentFor(scene: VerificationEmailScene, code: string): { html: string; textPlain: string } {
+  if (scene === "reset-password") {
+    return {
+      html: `<p>您正在找回智序系统账号密码。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`,
+      textPlain: `您正在找回智序系统账号密码。验证码：${code}，10 分钟内有效，请勿告知他人。`,
+    };
+  }
+  return {
+    html: `<p>您正在注册智序系统账号。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`,
+    textPlain: `您正在注册智序系统账号。验证码：${code}，10 分钟内有效，请勿告知他人。`,
+  };
+}
 
 /**
  * 注册验证码发信：
@@ -11,12 +29,13 @@ const SUBJECT = "智序商业报价合同生成系统 — 注册验证码";
  */
 export async function sendVerificationEmail(
   to: string,
-  code: string
+  code: string,
+  scene: VerificationEmailScene = "register"
 ): Promise<
   { ok: true; via: "tencent-ses" | "smtp" | "dev" } | { ok: false; error: string }
 > {
-  const html = `<p>您正在注册智序系统账号。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`;
-  const textPlain = `您正在注册智序系统账号。验证码：${code}，10 分钟内有效，请勿告知他人。`;
+  const subject = subjectFor(scene);
+  const { html, textPlain } = contentFor(scene, code);
 
   const failures: string[] = [];
 
@@ -50,7 +69,7 @@ export async function sendVerificationEmail(
         await client.SendEmail({
           FromEmailAddress: tcFrom,
           Destination: [to],
-          Subject: SUBJECT,
+          Subject: subject,
           Template: {
             TemplateID: templateIdParsed,
             TemplateData: JSON.stringify(templateData),
@@ -62,7 +81,7 @@ export async function sendVerificationEmail(
         await client.SendEmail({
           FromEmailAddress: tcFrom,
           Destination: [to],
-          Subject: SUBJECT,
+          Subject: subject,
           Simple: {
             Html: Buffer.from(html, "utf-8").toString("base64"),
             Text: Buffer.from(textPlain, "utf-8").toString("base64"),
@@ -99,7 +118,7 @@ export async function sendVerificationEmail(
       await transport.sendMail({
         from: smtpFrom,
         to,
-        subject: SUBJECT,
+        subject,
         html,
       });
       return { ok: true, via: "smtp" };
@@ -111,7 +130,7 @@ export async function sendVerificationEmail(
   }
 
   if (process.env.NODE_ENV === "development") {
-    console.info(`[email dev] 验证码 → ${to} : ${code}`);
+    console.info(`[email dev] ${scene} code → ${to} : ${code}`);
     return { ok: true, via: "dev" };
   }
 

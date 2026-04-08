@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { markPostLoginSubscriptionCheck } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 
@@ -94,12 +94,54 @@ function PasswordField({
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [showPw2, setShowPw2] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [msg, setMsg] = useState("");
+
+  async function sendCode() {
+    setMsg("");
+    const em = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+      setMsg("邮箱格式不正确");
+      return;
+    }
+    if (cooldown > 0) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/auth/email/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: em }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; message?: string; debugCode?: string };
+      if (!res.ok || !j.ok) {
+        setMsg(j.error || "发送失败");
+        return;
+      }
+      if (j.debugCode) setCode(String(j.debugCode));
+      setCooldown(60);
+      setMsg(j.message || "验证码已发送，请查收邮箱");
+    } catch {
+      setMsg("网络错误");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // 倒计时（仅 UI）
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setCooldown((c) => (c > 0 ? c - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
 
   async function submit() {
     setMsg("");
@@ -111,12 +153,16 @@ export default function RegisterPage() {
       setMsg("两次输入的密码不一致");
       return;
     }
+    if (!/^\d{6}$/.test(code.trim())) {
+      setMsg("请输入 6 位数字验证码");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/register-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, code: code.trim() }),
         credentials: "include",
       });
       const j = (await res.json()) as { ok?: boolean; error?: string };
@@ -139,7 +185,7 @@ export default function RegisterPage() {
     <div className="mx-auto min-h-screen max-w-md px-4 py-10">
       <h1 className="text-center text-xl font-semibold text-slate-900">注册账号</h1>
       <p className="mt-2 text-center text-sm text-slate-600">
-        使用邮箱与密码注册，无需邮件验证码。注册后需兑换激活码方可使用功能；邮箱可用于后续找回密码（待开通）。
+        使用邮箱验证码注册。注册后需兑换激活码方可使用功能；邮箱可用于后续找回密码。
       </p>
 
       <div className="mt-8 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -155,6 +201,24 @@ export default function RegisterPage() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
           />
+        </div>
+        <div>
+          <label htmlFor="reg-code" className="text-xs text-slate-600">
+            邮箱验证码
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="reg-code"
+              inputMode="numeric"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+              placeholder="6 位数字"
+            />
+            <TextButton variant="secondary" disabled={sending || submitting || cooldown > 0} onClick={() => void sendCode()}>
+              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中…" : "发送验证码"}
+            </TextButton>
+          </div>
         </div>
         <PasswordField
           id="reg-password"

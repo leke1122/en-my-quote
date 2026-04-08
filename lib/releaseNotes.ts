@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.8",
+    datetime: "2026-04-10 01:30",
+    summary: [
+      "接入腾讯云邮件验证码流程：注册页支持发送邮箱验证码并完成验证码注册。",
+      "新增“忘记密码”功能：发送邮箱验证码后可重置密码（验证码 10 分钟有效；同一邮箱 60 秒内仅允许发送一次）。",
+    ],
+  },
+  {
     version: "0.1.7",
     datetime: "2026-04-10 00:10",
     summary: [

@@ -84,6 +84,10 @@ export default function LoginPage() {
           没有账号？去注册
         </Link>
         {" · "}
+        <Link href="/forgot-password" className="text-slate-800 underline-offset-2 hover:underline">
+          忘记密码
+        </Link>
+        {" · "}
         <Link href="/" className="text-slate-800 underline-offset-2 hover:underline">
           首页
         </Link>
