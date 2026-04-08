@@ -11,6 +11,16 @@ export interface ContractHtml2CanvasCloneOpts {
 function tuneContractTableLayout(root: HTMLElement) {
   const table = root.querySelector(".quote-print-lines-desktop table");
   if (!table) return;
+  const ensureColgroup = (widths: number[]) => {
+    table.querySelector("colgroup")?.remove();
+    const colgroup = root.ownerDocument.createElement("colgroup");
+    widths.forEach((w) => {
+      const col = root.ownerDocument.createElement("col");
+      col.style.width = `${w}%`;
+      colgroup.appendChild(col);
+    });
+    table.prepend(colgroup);
+  };
   const rows = table.querySelectorAll("tbody tr");
   let longest = 0;
   rows.forEach((row) => {
@@ -24,6 +34,14 @@ function tuneContractTableLayout(root: HTMLElement) {
   }
   if (rows.length >= 20 || longest >= 42) {
     table.classList.add("contract-export-ultra");
+  }
+  // 列宽优先给「名称/规格/备注」，压缩单位/数量/单价/金额等短字段列。
+  if (rows.length >= 20 || longest >= 42) {
+    ensureColgroup([10, 20, 24, 6, 7, 9, 10, 14]);
+  } else if (rows.length >= 12 || longest >= 24) {
+    ensureColgroup([11, 19, 22, 6, 7, 10, 11, 14]);
+  } else {
+    ensureColgroup([12, 18, 20, 7, 8, 11, 12, 12]);
   }
 }
 
@@ -88,7 +106,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
-  line-height: 1.35 !important;
+  line-height: 1.4 !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop td input,
 #contract-print.quote-export-capture .quote-print-lines-desktop td textarea {
@@ -96,8 +114,10 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop th,
 #contract-print.quote-export-capture .quote-print-lines-desktop td {
-  padding-top: 0.28rem !important;
-  padding-bottom: 0.28rem !important;
+  padding-top: 0.36rem !important;
+  padding-bottom: 0.36rem !important;
+  padding-left: 0.32rem !important;
+  padding-right: 0.32rem !important;
 }
 #contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-compact th,
 #contract-print.quote-export-capture .quote-print-lines-desktop table.contract-export-compact td {

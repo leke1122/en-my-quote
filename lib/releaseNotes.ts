@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.1.6",
+    datetime: "2026-04-09 23:10",
+    summary: [
+      "优化报价/合同导出明细表美观度：标题与内容单元格统一垂直居中，增加上下左右内边距，避免文字贴边与视觉下沉。",
+      "导出时按明细行数与文本长度动态调整列宽与紧凑级别：压缩单位/数量/单价/金额列，把更多宽度让给名称、规格与备注列，减少串行和跨格遮挡。",
+    ],
+  },
+  {
     version: "0.1.5",
     datetime: "2026-04-09 22:30",
     summary: [

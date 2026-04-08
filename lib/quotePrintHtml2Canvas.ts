@@ -8,6 +8,16 @@ export interface QuoteHtml2CanvasCloneOpts {
 function tuneQuoteTableLayout(root: HTMLElement) {
   const table = root.querySelector(".quote-table");
   if (!table) return;
+  const ensureColgroup = (widths: number[]) => {
+    table.querySelector("colgroup")?.remove();
+    const colgroup = root.ownerDocument.createElement("colgroup");
+    widths.forEach((w) => {
+      const col = root.ownerDocument.createElement("col");
+      col.style.width = `${w}%`;
+      colgroup.appendChild(col);
+    });
+    table.prepend(colgroup);
+  };
   const rows = table.querySelectorAll("tbody tr");
   let longest = 0;
   rows.forEach((row) => {
@@ -21,6 +31,17 @@ function tuneQuoteTableLayout(root: HTMLElement) {
   }
   if (rows.length >= 18 || longest >= 42) {
     table.classList.add("quote-export-ultra");
+  }
+  const colCount = table.querySelectorAll("thead th").length;
+  // 无图模式：名称/型号/规格/备注给更多空间；有图模式额外预留缩略图列。
+  if (colCount === 8) {
+    if (rows.length >= 18 || longest >= 42) ensureColgroup([20, 15, 20, 6, 9, 7, 10, 13]);
+    else if (rows.length >= 10 || longest >= 24) ensureColgroup([19, 14, 19, 7, 10, 7, 11, 13]);
+    else ensureColgroup([18, 13, 18, 7, 11, 8, 12, 13]);
+  } else if (colCount === 9) {
+    if (rows.length >= 18 || longest >= 42) ensureColgroup([8, 18, 14, 19, 6, 9, 7, 9, 10]);
+    else if (rows.length >= 10 || longest >= 24) ensureColgroup([8, 17, 13, 18, 6, 10, 7, 10, 11]);
+    else ensureColgroup([8, 16, 12, 17, 7, 10, 8, 11, 11]);
   }
 }
 
@@ -71,7 +92,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
-  line-height: 1.35 !important;
+  line-height: 1.4 !important;
 }
 #quote-print.quote-export-capture .quote-table {
   width: 100% !important;
@@ -85,8 +106,10 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
 }
 #quote-print.quote-export-capture .quote-table th,
 #quote-print.quote-export-capture .quote-table td {
-  padding-top: 0.28rem !important;
-  padding-bottom: 0.28rem !important;
+  padding-top: 0.36rem !important;
+  padding-bottom: 0.36rem !important;
+  padding-left: 0.32rem !important;
+  padding-right: 0.32rem !important;
 }
 #quote-print.quote-export-capture .quote-table.quote-export-compact th,
 #quote-print.quote-export-capture .quote-table.quote-export-compact td {
