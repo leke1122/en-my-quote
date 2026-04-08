@@ -2,7 +2,8 @@
 export type SubscriptionPlan = "trial" | "monthly" | "yearly" | "lifetime";
 
 export function isSubscriptionActive(validUntil: Date | null, plan: string): boolean {
-  if (plan === "lifetime") return true;
+  const p = plan.trim().toLowerCase();
+  if (p === "lifetime" || p.includes("lifetime") || p.endsWith("_lifetime")) return true;
   if (!validUntil) return false;
   return validUntil.getTime() > Date.now();
 }

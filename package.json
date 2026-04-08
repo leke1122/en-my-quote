@@ -1,13 +1,13 @@
 {
   "name": "my-quote",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "prisma": {
     "seed": "node prisma/seed.mjs"
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "node scripts/prismaDeployIfNeeded.mjs && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate"
@@ -23,7 +23,8 @@
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
-    "tencentcloud-sdk-nodejs-ses": "^4.1.203"
+    "tencentcloud-sdk-nodejs-ses": "^4.1.203",
+    "wechatpay-node-v3": "^2.2.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

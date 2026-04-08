@@ -20,8 +20,14 @@ export function describePlan(plan: string): PlanFeatures {
   if (p === "trial") {
     return { displayName: "试用版（全功能）", quote: true, contract: true };
   }
-  if (p === "lifetime" || p.includes("lifetime") || p.endsWith("_lifetime")) {
+  if (p === "lifetime" || p === "full_lifetime" || p === "quote_contract_lifetime") {
     return { displayName: "永久版（全功能）", quote: true, contract: true };
+  }
+  if (p === "quote_lifetime" || p === "quote_only_lifetime") {
+    return { displayName: "永久版（报价版）", quote: true, contract: false };
+  }
+  if (p === "contract_lifetime" || p === "contract_only_lifetime") {
+    return { displayName: "永久版（合同版）", quote: false, contract: true };
   }
   if (p === "quote_monthly" || p === "quote_only" || p === "quote") {
     return { displayName: "报价版", quote: true, contract: false };

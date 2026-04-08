@@ -17,6 +17,14 @@ export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
+    version: "0.2.2",
+    datetime: "2026-04-08 21:10",
+    summary: [
+      "新增微信 Native 扫码支付开通闭环：生成付款二维码 → 回调验签/解密 → 订单落库 → 订阅按“顺延规则”自动激活/续费。",
+      "新增支付订单表 PaymentOrder，并提供订单状态查询接口，便于前端轮询展示支付结果。",
+    ],
+  },
+  {
     version: "0.2.1",
     datetime: "2026-04-10 19:50",
     summary: [

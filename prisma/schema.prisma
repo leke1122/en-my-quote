@@ -19,6 +19,7 @@ model User {
   subscription Subscription?
   /// 每人一包业务数据（JSON），与本地备份结构对齐
   projectData  UserProjectData?
+  paymentOrders PaymentOrder[]
 }
 
 /// 用户项目数据（客户/商品/报价/合同等打一包）
@@ -57,4 +58,42 @@ model EmailVerificationCode {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([email])
+}
+
+/// 支付订单（用于微信 Native 扫码支付等）
+model PaymentOrder {
+  id String @id @default(cuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /** wechat */
+  provider String
+  /** 商户订单号（本系统生成，唯一） */
+  outTradeNo String @unique @map("out_trade_no")
+
+  /** SKU（用于映射套餐/时长/权益） */
+  sku String
+  /** 订单描述（传给微信 description） */
+  description String
+
+  /** 金额（分） */
+  amountFen Int @map("amount_fen")
+  currency  String @default("CNY")
+
+  /** pending | paid | closed | failed */
+  status String @default("pending")
+
+  /** 微信返回：prepay_id、code_url、transaction_id */
+  wechatPrepayId   String? @map("wechat_prepay_id")
+  wechatCodeUrl    String? @map("wechat_code_url")
+  wechatTransId    String? @map("wechat_trans_id")
+
+  paidAt    DateTime? @map("paid_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([provider])
 }

@@ -55,6 +55,16 @@ export default function SettingsPage() {
         </p>
         <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
           <p>
+            <span className="text-slate-500">微信扫码开通：</span>
+            <button
+              type="button"
+              onClick={() => router.push("/pay/wechat")}
+              className="font-medium text-slate-900 underline-offset-2 hover:underline"
+            >
+              打开支付页（自动顺延激活）
+            </button>
+          </p>
+          <p>
             <span className="text-slate-500">续费店铺：</span>
             <a
               href="https://hcwnn1122.taobao.com"

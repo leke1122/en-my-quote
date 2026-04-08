@@ -19,7 +19,7 @@ export function partyFromCompany(c: Company): ContractPartySnapshot {
     agent: c.contact,
     phone: c.phone,
     bankName: c.bankName,
-    bankAccount: "",
+    bankAccount: c.bankCode,
     taxId: c.taxId,
   };
 }
