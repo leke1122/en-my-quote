@@ -21,10 +21,16 @@ export async function GET(request: Request) {
   try {
     cfg = getGoogleOAuthConfig();
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "Google OAuth is not configured." },
-      { status: 503 }
-    );
+    const url = new URL(request.url);
+    const redirect = safeRedirectPath(url.searchParams.get("redirect"));
+    const msg =
+      e instanceof Error
+        ? e.message
+        : "Google OAuth is not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI).";
+    const login = new URL("/login", url.origin);
+    login.searchParams.set("redirect", redirect);
+    login.searchParams.set("error", msg);
+    return NextResponse.redirect(login);
   }
 
   const url = new URL(request.url);

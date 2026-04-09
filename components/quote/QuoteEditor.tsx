@@ -5,7 +5,7 @@ import { jsPDF } from "jspdf";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
@@ -230,6 +230,7 @@ export function QuoteEditor() {
   const [productSearch, setProductSearch] = useState("");
   const [quickProductOpen, setQuickProductOpen] = useState(false);
   const [quickProduct, setQuickProduct] = useState(emptyQuickProduct);
+  const quickProductImageInputRef = useRef<HTMLInputElement | null>(null);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(emptyQuickCustomer);
   const [suppressAutoQuoteNo, setSuppressAutoQuoteNo] = useState(false);
@@ -1763,7 +1764,25 @@ export function QuoteEditor() {
               setQuickProduct((s) => ({ ...s, price: Number.parseFloat(e.target.value) || 0 }))
             }
           />
-          <input type="file" accept="image/*" onChange={onQuickProductImage} />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={quickProductImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onQuickProductImage}
+              className="hidden"
+            />
+            <TextButton
+              variant="secondary"
+              type="button"
+              onClick={() => quickProductImageInputRef.current?.click()}
+            >
+              Choose image
+            </TextButton>
+            <span className="text-xs text-slate-500">
+              Optional. JPG/PNG recommended.
+            </span>
+          </div>
         </div>
       </Modal>
 

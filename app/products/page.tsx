@@ -1,7 +1,7 @@
 "use client";
 
 import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
@@ -43,6 +43,7 @@ function ProductsPageInner() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<Omit<Product, "id">>(emptyForm);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [quotesSnap, setQuotesSnap] = useState<ReturnType<typeof getQuotes>>([]);
   const [contractsSnap, setContractsSnap] = useState<ReturnType<typeof getContracts>>([]);
 
@@ -349,7 +350,19 @@ function ProductsPageInner() {
           </div>
           <div>
             <label className="block text-slate-600">Image upload</label>
-            <input type="file" accept="image/*" className="mt-1 w-full text-sm" onChange={onImageFile} />
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onImageFile}
+              />
+              <TextButton variant="secondary" type="button" onClick={() => imageInputRef.current?.click()}>
+                Choose image
+              </TextButton>
+              <span className="text-xs text-slate-500">Optional. JPG/PNG recommended.</span>
+            </div>
             {form.image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={form.image} alt="" className="mt-2 max-h-32 rounded border border-slate-200" />

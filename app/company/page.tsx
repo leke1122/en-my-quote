@@ -1,7 +1,7 @@
 "use client";
 
 import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionFeatureGate";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
@@ -38,6 +38,8 @@ function CompanyPageInner() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [form, setForm] = useState<Omit<Company, "id">>(emptyForm);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const sealInputRef = useRef<HTMLInputElement | null>(null);
 
   const refresh = useCallback(() => {
     setList(getCompanies());
@@ -323,7 +325,19 @@ function CompanyPageInner() {
           </div>
           <div>
             <label className="block text-slate-600">Logo upload</label>
-            <input type="file" accept="image/*" className="mt-1 w-full text-sm" onChange={onLogoFile} />
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onLogoFile}
+              />
+              <TextButton variant="secondary" type="button" onClick={() => logoInputRef.current?.click()}>
+                Choose image
+              </TextButton>
+              <span className="text-xs text-slate-500">Optional. JPG/PNG recommended.</span>
+            </div>
             {form.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={form.logo} alt="" className="mt-2 max-h-24 rounded border border-slate-200" />
@@ -332,12 +346,19 @@ function CompanyPageInner() {
           <div>
             <label className="block text-slate-600">Company seal (transparent PNG)</label>
             <p className="mt-0.5 text-xs text-slate-500">Placed on contract signature blocks; PNG with transparency recommended.</p>
-            <input
-              type="file"
-              accept="image/png,.png"
-              className="mt-1 w-full text-sm"
-              onChange={onSealFile}
-            />
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                ref={sealInputRef}
+                type="file"
+                accept="image/png,.png"
+                className="hidden"
+                onChange={onSealFile}
+              />
+              <TextButton variant="secondary" type="button" onClick={() => sealInputRef.current?.click()}>
+                Choose PNG
+              </TextButton>
+              <span className="text-xs text-slate-500">Transparent PNG recommended.</span>
+            </div>
             {form.sealImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
