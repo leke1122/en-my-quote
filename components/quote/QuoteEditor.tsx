@@ -12,6 +12,7 @@ import { useSubscriptionAccess } from "@/components/subscription/SubscriptionPro
 import { TextButton } from "@/components/TextButton";
 import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
+import { compositeSealsInColorOnCanvasAsync } from "@/lib/contractExportSeal";
 import { formatCurrency } from "@/lib/format";
 import { readImageCompressedDataUrl } from "@/lib/imageUpload";
 import type { QuoteSharePayload } from "@/lib/quoteSharePayload";
@@ -158,6 +159,8 @@ export function QuoteEditor() {
   const [extraFees, setExtraFees] = useState<QuoteExtraFee[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [showLineImages, setShowLineImages] = useState(true);
+  /** 报价单上是否叠印我司公章（与合同公章比例一致） */
+  const [showSeal, setShowSeal] = useState(false);
   const [lineTextDraft, setLineTextDraft] = useState<LineTextDraft>({});
   const [extraFeeAmountDraft, setExtraFeeAmountDraft] = useState<ExtraFeeAmountDraft>({});
 
@@ -244,6 +247,7 @@ export function QuoteEditor() {
             setTaxRate(q.taxRate);
             setExtraFees(q.extraFees);
             setTerms(Array.isArray(q.terms) ? q.terms : []);
+            setShowSeal(q.showSeal === true);
             setLineTextDraft({});
             setExtraFeeAmountDraft({});
             setQuoteNoLocked(false);
@@ -272,6 +276,7 @@ export function QuoteEditor() {
       setTaxRate(13);
       setExtraFees([]);
       setTerms(loadQuoteTermsTemplate());
+      setShowSeal(false);
       setLineTextDraft({});
       setExtraFeeAmountDraft({});
       setQuoteNoLocked(false);
@@ -461,6 +466,7 @@ export function QuoteEditor() {
         taxRate,
         extraFees,
         terms,
+        showSeal: showSeal === true,
         createdAt: now,
         updatedAt: now,
       };
@@ -482,6 +488,7 @@ export function QuoteEditor() {
               taxRate,
               extraFees,
               terms,
+              showSeal: showSeal === true,
               updatedAt: now,
             }
           : q
@@ -502,6 +509,7 @@ export function QuoteEditor() {
   async function exportImage() {
     const el = document.getElementById("quote-print");
     if (!el) return;
+    const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -520,6 +528,7 @@ export function QuoteEditor() {
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
     }
+    await compositeSealsInColorOnCanvasAsync(canvas, sealImages, el);
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/png", 1.0);
     a.download = `${quoteNo || "quote"}.png`;
@@ -529,6 +538,7 @@ export function QuoteEditor() {
   async function exportPdf() {
     const el = document.getElementById("quote-print");
     if (!el) return;
+    const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
     let canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -547,6 +557,7 @@ export function QuoteEditor() {
     if (!exportInColor) {
       canvas = canvasGrayscaleForExport(canvas);
     }
+    await compositeSealsInColorOnCanvasAsync(canvas, sealImages, el);
     const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
     const pageW = pdf.internal.pageSize.getWidth();
@@ -594,6 +605,7 @@ export function QuoteEditor() {
               bankName: company.bankName,
               bankCode: company.bankCode,
               abbr: company.abbr,
+              sealImage: showSeal && company.sealImage ? company.sealImage : undefined,
             }
           : null,
         customerSnapshot: customer
@@ -610,6 +622,7 @@ export function QuoteEditor() {
         taxRate,
         extraFees,
         terms,
+        showSeal: showSeal === true,
       };
       const enc = await encodeSharePayload(payload);
       const base =
@@ -748,6 +761,14 @@ export function QuoteEditor() {
           onChange={(e) => setShowLineImages(e.target.checked)}
         />
         显示明细商品图片（取消勾选则隐藏图片列；导出图片与 PDF 时同样生效）
+      </label>
+      <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={showSeal}
+          onChange={(e) => setShowSeal(e.target.checked)}
+        />
+        显示公章（需在我司信息中上传公章图；勾选后在总价与条款之间显示，无条款则在总价与供方账户信息之间；导出时与合同一致保留公章原色叠印）
       </label>
       <p className="mb-3 text-xs leading-relaxed text-slate-500">
         提示：报价单号按“每天从 001 开始、每保存一次递增”。未保存前预览号可能保持不变，保存后才会占用并跳到下一个编号。
@@ -1171,6 +1192,19 @@ export function QuoteEditor() {
           </div>
         </div>
 
+        {showSeal && company?.sealImage ? (
+          <div className="quote-print-seal-block relative mt-6 flex justify-end">
+            <div className="contract-print-seal-wrap pointer-events-none flex max-w-[58%] items-end justify-end sm:max-w-[55%]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={company.sealImage}
+                alt="公章"
+                className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900">报价条款</h3>
@@ -1244,7 +1278,7 @@ export function QuoteEditor() {
             checked={exportInColor}
             onChange={(e) => setExportInColor(e.target.checked)}
           />
-          导出为彩色（生成图片 / PDF；不勾选则为黑白样式，默认黑白）
+          导出为彩色（生成图片 / PDF；不勾选则为黑白样式；公章始终按上传原色叠印）
         </label>
         <div className="flex flex-wrap gap-2">
         <TextButton variant="primary" onClick={saveQuote}>

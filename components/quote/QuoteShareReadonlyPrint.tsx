@@ -235,6 +235,19 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
         </div>
       </div>
 
+      {data.showSeal && company?.sealImage ? (
+        <div className="quote-print-seal-block relative mt-6 flex justify-end">
+          <div className="contract-print-seal-wrap pointer-events-none flex max-w-[58%] items-end justify-end sm:max-w-[55%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={company.sealImage}
+              alt="公章"
+              className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {hasTerms ? (
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
           <h3 className="mb-3 text-sm font-semibold text-slate-900">报价条款</h3>

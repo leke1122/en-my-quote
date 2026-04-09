@@ -1,3 +1,8 @@
+import {
+  finalizeQuoteExportLayoutFromClone,
+  resetContractExportCaptureMeta,
+} from "@/lib/contractExportSeal";
+
 /** 与 QuoteEditor 导出图片时 onclone 逻辑一致 */
 
 export interface QuoteHtml2CanvasCloneOpts {
@@ -124,6 +129,7 @@ function normalizeQuoteTableCells(root: HTMLElement) {
 }
 
 export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2CanvasCloneOpts) {
+  resetContractExportCaptureMeta();
   const root = clonedDoc.getElementById("quote-print");
   if (!root) return;
   const el = root as HTMLElement;
@@ -268,4 +274,5 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
   });
   tuneQuoteTableLayout(root as HTMLElement);
   normalizeQuoteTableCells(root as HTMLElement);
+  finalizeQuoteExportLayoutFromClone(clonedDoc);
 }

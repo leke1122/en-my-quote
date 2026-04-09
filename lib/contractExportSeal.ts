@@ -85,6 +85,22 @@ export function finalizeContractExportLayoutFromClone(clonedDoc: Document): void
   });
 }
 
+/** 报价单导出：与合同相同测量逻辑，根节点为 `#quote-print` */
+export function finalizeQuoteExportLayoutFromClone(clonedDoc: Document): void {
+  const root = clonedDoc.getElementById("quote-print");
+  if (!root) return;
+  lastContractExportRootWidth = Math.max(
+    Math.round(root.getBoundingClientRect().width) || 0,
+    root.offsetWidth,
+    root.scrollWidth,
+    1
+  );
+  lastSealRects = [];
+  root.querySelectorAll("img.contract-print-seal").forEach((node) => {
+    lastSealRects.push(measureSealInClone(node as HTMLImageElement, root as HTMLElement));
+  });
+}
+
 function loadImageFromSrc(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const im = new Image();

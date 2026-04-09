@@ -21,6 +21,9 @@ const gridRow1 = "grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 sm:items-stretc
 const cardClass =
   "surface-card flex min-h-[3.25rem] items-center gap-3 p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:min-h-[3.5rem] sm:gap-4 sm:p-5";
 
+const navPill =
+  "shrink-0 rounded-lg border border-slate-200/90 bg-white/95 px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-white";
+
 function NavCard({ href, title, emoji }: { href: string; title: string; emoji: string }) {
   return (
     <Link href={href} className={cardClass}>
@@ -35,72 +38,58 @@ function NavCard({ href, title, emoji }: { href: string; title: string; emoji: s
 export default function Home() {
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-10">
-      <header className="mb-6 flex flex-wrap items-start justify-end gap-2 sm:mb-8 sm:gap-3">
-        <Link
-          href="/pricing"
-          className="surface-card rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-white"
-        >
-          价格说明
+      <header className="mb-6 flex items-center gap-2 sm:mb-8 sm:gap-4">
+        <Link href="/" className="shrink-0 rounded-xl ring-slate-200/80 transition hover:ring-2" aria-label="智序签单">
+          <Image
+            src="/site-logo.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-9 w-9 rounded-xl object-cover shadow-sm sm:h-10 sm:w-10"
+            priority
+          />
         </Link>
-        <Link
-          href="/faq"
-          className="surface-card rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-white"
-        >
-          常见问题
-        </Link>
-        <Link
-          href="/help"
-          className="surface-card rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-white"
-        >
-          使用说明
-        </Link>
-        <Link
-          href="/release-notes"
-          className="surface-card rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-white"
-        >
-          版本说明
-        </Link>
-        <HomeAuthLinks />
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
+          <Link href="/pricing" className={navPill} title="价格说明">
+            价
+          </Link>
+          <Link href="/faq" className={navPill} title="常见问题">
+            问
+          </Link>
+          <Link href="/help" className={navPill} title="使用说明">
+            用
+          </Link>
+          <Link href="/release-notes" className={navPill} title="版本说明">
+            版
+          </Link>
+          <HomeAuthLinks compact />
+        </div>
       </header>
 
       <section className="surface-card relative mb-8 overflow-hidden p-5 sm:mb-10 sm:p-8">
         <div className="pointer-events-none absolute -right-14 -top-10 h-36 w-36 rounded-full bg-sky-200/45 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-10 -left-8 h-32 w-32 rounded-full bg-indigo-200/35 blur-2xl" />
-        <div className="relative grid gap-6 sm:grid-cols-[1.15fr_0.85fr] sm:items-center">
-          <div>
-            <p className="mb-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-              智序签单 · 商业效率工具
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              智序签单
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
-              聚焦报价与合同流程，帮助中小团队在手机与电脑上快速完成资料维护、单据生成、导出分享与历史追溯。
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Link
-                href="/quote/new"
-                className="rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-sky-600 hover:to-indigo-700"
-              >
-                开始报价
-              </Link>
-              <Link
-                href="/help"
-                className="surface-card rounded-xl px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white"
-              >
-                查看演示
-              </Link>
-            </div>
-          </div>
-          <div className="mx-auto w-full max-w-[220px] sm:max-w-[280px]">
-            <Image
-              src="/brand-logo.svg"
-              alt="智序签单 Logo"
-              width={512}
-              height={512}
-              className="h-auto w-full rounded-2xl border border-slate-200/80 bg-white/80 p-2 shadow-sm"
-              priority
-            />
+        <div className="relative max-w-xl">
+          <p className="mb-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+            智序签单 · 商业效率工具
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">智序签单</h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+            聚焦报价与合同流程，帮助中小团队在手机与电脑上快速完成资料维护、单据生成、导出分享与历史追溯。
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link
+              href="/quote/new"
+              className="rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-sky-600 hover:to-indigo-700"
+            >
+              开始报价
+            </Link>
+            <Link
+              href="/help"
+              className="surface-card rounded-xl px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white"
+            >
+              查看演示
+            </Link>
           </div>
         </div>
       </section>

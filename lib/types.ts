@@ -72,6 +72,8 @@ export interface Quote {
   extraFees: QuoteExtraFee[];
   /** 报价条款，多条 */
   terms: string[];
+  /** 是否在报价单上显示我司公章（与合同签章页公章比例一致） */
+  showSeal?: boolean;
   createdAt: string;
   updatedAt: string;
 }

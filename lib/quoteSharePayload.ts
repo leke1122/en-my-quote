@@ -2,7 +2,16 @@ import type { Company, Customer, QuoteExtraFee, QuoteLine } from "@/lib/types";
 
 export type QuoteCompanySnapshot = Pick<
   Company,
-  "name" | "contact" | "phone" | "address" | "logo" | "taxId" | "bankName" | "bankCode" | "abbr"
+  | "name"
+  | "contact"
+  | "phone"
+  | "address"
+  | "logo"
+  | "taxId"
+  | "bankName"
+  | "bankCode"
+  | "abbr"
+  | "sealImage"
 >;
 
 export type QuoteCustomerSnapshot = Pick<Customer, "name" | "contact" | "phone" | "address">;
@@ -20,6 +29,8 @@ export interface QuoteSharePayload {
   taxRate: number;
   extraFees?: QuoteExtraFee[];
   terms?: string[];
+  /** 是否显示公章（与报价单编辑一致） */
+  showSeal?: boolean;
 }
 
 export function parseQuoteSharePayload(raw: unknown): QuoteSharePayload | null {
@@ -40,5 +51,6 @@ export function parseQuoteSharePayload(raw: unknown): QuoteSharePayload | null {
     taxRate: typeof o.taxRate === "number" ? o.taxRate : Number(o.taxRate) || 0,
     extraFees: Array.isArray(o.extraFees) ? (o.extraFees as QuoteExtraFee[]) : [],
     terms: Array.isArray(o.terms) ? (o.terms as string[]) : [],
+    showSeal: !!o.showSeal,
   };
 }

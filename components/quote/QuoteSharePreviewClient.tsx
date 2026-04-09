@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
+import { compositeSealsInColorOnCanvasAsync } from "@/lib/contractExportSeal";
 import { parseQuoteSharePayload, type QuoteSharePayload } from "@/lib/quoteSharePayload";
 import { quoteHtml2canvasOnClone } from "@/lib/quotePrintHtml2Canvas";
 import { decodeSharePayload } from "@/lib/share";
@@ -63,6 +64,7 @@ export function QuoteSharePreviewClient() {
     const timer = window.setTimeout(async () => {
       const el = document.getElementById("quote-print");
       if (!el || cancelled) return;
+      const sealImages = Array.from(el.querySelectorAll("img.contract-print-seal")) as HTMLImageElement[];
       try {
         let canvas = await html2canvas(el, {
           scale: 2,
@@ -80,6 +82,7 @@ export function QuoteSharePreviewClient() {
             }),
         });
         canvas = canvasGrayscaleForExport(canvas);
+        await compositeSealsInColorOnCanvasAsync(canvas, sealImages, el);
         if (!cancelled) {
           setImgUrl(canvas.toDataURL("image/png", 1.0));
           setCapErr("");
