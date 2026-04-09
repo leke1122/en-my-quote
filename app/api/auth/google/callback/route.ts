@@ -31,19 +31,45 @@ function safeRedirectPath(raw: string | null | undefined): string {
   return v;
 }
 
+function errText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
+
+function loginRedirectWithError(url: URL, redirect: string, error: string, detail?: string) {
+  const login = new URL("/login", url.origin);
+  login.searchParams.set("redirect", redirect);
+  login.searchParams.set("error", error);
+  if (process.env.NODE_ENV !== "production" && detail) {
+    login.searchParams.set("error_detail", detail.slice(0, 400));
+  }
+  return NextResponse.redirect(login);
+}
+
+function mapOauthFailure(e: unknown): { code: string; detail: string } {
+  const detail = errText(e);
+  if (/JWT_SECRET/i.test(detail)) return { code: "auth_not_configured", detail };
+  if (/Database is not configured/i.test(detail)) return { code: "auth_not_configured", detail };
+  if (/redirect_uri_mismatch/i.test(detail)) return { code: "google_redirect_uri_mismatch", detail };
+  if (/Token exchange failed/i.test(detail)) return { code: "google_token_exchange_failed", detail };
+  return { code: "google_signin_failed", detail };
+}
+
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  if (!prisma) {
-    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
-  }
-
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const err = url.searchParams.get("error");
   if (err) {
     clearOauthCookies();
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent("Google sign-in was cancelled.")}`, url.origin));
+    return NextResponse.redirect(
+      new URL(`/login?error=${encodeURIComponent("Google sign-in was cancelled.")}`, url.origin)
+    );
   }
   if (!code || !state) {
     clearOauthCookies();
@@ -67,6 +93,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (!prisma) {
+      throw new Error("Database is not configured.");
+    }
     const tokens = await exchangeGoogleCodeForTokens({
       code,
       codeVerifier: verifier,
@@ -140,9 +169,11 @@ export async function GET(request: Request) {
 
     clearOauthCookies();
     return NextResponse.redirect(new URL(redirect, url.origin));
-  } catch {
+  } catch (e) {
+    const mapped = mapOauthFailure(e);
+    console.error("[google_oauth_callback_failed]", mapped.code, mapped.detail);
     clearOauthCookies();
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent("Google sign-in failed. Try again.")}`, url.origin));
+    return loginRedirectWithError(url, redirect, mapped.code, mapped.detail);
   }
 }
 

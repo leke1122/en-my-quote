@@ -47,6 +47,22 @@ export default function LoginPage() {
         ? `Google sign-in is not available yet. ${detail}`
         : "Google sign-in is not available yet. Please use email and password.";
     }
+    if (code === "auth_not_configured") {
+      return detail
+        ? `Sign-in is not available yet. ${detail}`
+        : "Sign-in is not available yet. Please contact support or try again later.";
+    }
+    if (code === "google_redirect_uri_mismatch") {
+      return "Google sign-in setup error: redirect URI mismatch. Please contact support.";
+    }
+    if (code === "google_token_exchange_failed") {
+      return detail
+        ? `Google sign-in failed. ${detail}`
+        : "Google sign-in failed. Please try again.";
+    }
+    if (code === "google_signin_failed") {
+      return "Google sign-in failed. Please try again.";
+    }
     return code;
   }, []);
 
