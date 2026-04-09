@@ -1,8 +1,5 @@
-"use client";
-
 import type { Metadata } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "User guide",
@@ -67,8 +64,6 @@ function Shot({
 }
 
 export default function HelpPage() {
-  const router = useRouter();
-
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-10">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:mb-8">
@@ -79,25 +74,12 @@ export default function HelpPage() {
             and send read-only share links for customers.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              const res = await fetch("/api/auth/me", { credentials: "include" });
-              const j = (await res.json()) as { loggedIn?: boolean };
-              if (res.ok && j && j.loggedIn) {
-                router.push("/settings");
-              } else {
-                router.push("/login");
-              }
-            } catch {
-              router.push("/login");
-            }
-          }}
+        <Link
+          href="/settings"
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
         >
           Settings & backup
-        </button>
+        </Link>
       </header>
 
       <div className="space-y-6 sm:space-y-8">
