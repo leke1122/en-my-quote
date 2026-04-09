@@ -100,6 +100,41 @@ type LineTextDraft = Record<string, { price?: string; qty?: string }>;
 type ExtraFeeAmountDraft = Record<string, string>;
 const QUOTE_TERMS_TEMPLATE_KEY = "quote_terms_template_v1";
 const QUOTE_EDITOR_AUTOSAVE_KEY = "quote_editor_autosave_v1";
+const PAYMENT_TERMS_CUSTOM_KEY = "quote_payment_terms_custom_recent_v1";
+
+const PAYMENT_TERMS_PRESETS = [
+  "Due on receipt",
+  "Net 7",
+  "Net 15",
+  "Net 30",
+  "Net 45",
+  "Net 60",
+] as const;
+
+function loadRecentPaymentTerms(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(PAYMENT_TERMS_CUSTOM_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((x): x is string => typeof x === "string")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentPaymentTerms(next: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PAYMENT_TERMS_CUSTOM_KEY, JSON.stringify(next.slice(0, 10)));
+  } catch {
+    // ignore
+  }
+}
 
 interface QuoteEditorAutosave {
   savedAt: string;
@@ -206,6 +241,9 @@ export function QuoteEditor() {
   const [date, setDate] = useState(todayIso);
   const [validUntil, setValidUntil] = useState(() => isoAfterDays(14));
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
+  const [paymentTermsMode, setPaymentTermsMode] = useState<"preset" | "custom">("preset");
+  const [paymentTermsCustom, setPaymentTermsCustom] = useState("");
+  const [recentPaymentTerms, setRecentPaymentTerms] = useState<string[]>([]);
   const [status, setStatus] = useState<QuoteStatusBase>("draft");
   const [paymentLink, setPaymentLink] = useState("");
   const [paidAt, setPaidAt] = useState("");
@@ -375,6 +413,25 @@ export function QuoteEditor() {
       cancelled = true;
     };
   }, [quoteIdParam, shareParam, router]);
+
+  useEffect(() => {
+    setRecentPaymentTerms(loadRecentPaymentTerms());
+  }, []);
+
+  useEffect(() => {
+    const isPreset = PAYMENT_TERMS_PRESETS.includes(
+      paymentTerms as (typeof PAYMENT_TERMS_PRESETS)[number]
+    );
+    if (isPreset) {
+      if (paymentTermsMode !== "preset") setPaymentTermsMode("preset");
+      if (paymentTermsCustom) setPaymentTermsCustom("");
+      return;
+    }
+    if (paymentTerms.trim()) {
+      if (paymentTermsMode !== "custom") setPaymentTermsMode("custom");
+      if (!paymentTermsCustom) setPaymentTermsCustom(paymentTerms);
+    }
+  }, [paymentTerms, paymentTermsCustom, paymentTermsMode]);
 
   useEffect(() => {
     if (!isDraft || suppressAutoQuoteNo || quoteNoLocked) return;
@@ -614,6 +671,17 @@ export function QuoteEditor() {
       return;
     }
     const now = new Date().toISOString();
+    const effectivePaymentTerms =
+      paymentTermsMode === "custom" ? paymentTermsCustom.trim() : paymentTerms.trim();
+    if (paymentTermsMode === "custom" && effectivePaymentTerms) {
+      const next = [
+        effectivePaymentTerms,
+        ...recentPaymentTerms.filter((t) => t !== effectivePaymentTerms),
+      ].slice(0, 10);
+      setRecentPaymentTerms(next);
+      saveRecentPaymentTerms(next);
+      setPaymentTerms(effectivePaymentTerms);
+    }
     const all = getQuotes();
     let finalNo = quoteNo;
     let id = quoteId;
@@ -639,7 +707,7 @@ export function QuoteEditor() {
         terms,
         showSeal: showSeal === true,
         validUntil,
-        paymentTerms: paymentTerms.trim(),
+        paymentTerms: effectivePaymentTerms,
         status,
         paymentLink: paymentLink.trim() || undefined,
         paidAt: paidAt || undefined,
@@ -667,7 +735,7 @@ export function QuoteEditor() {
               terms,
               showSeal: showSeal === true,
               validUntil,
-              paymentTerms: paymentTerms.trim(),
+              paymentTerms: effectivePaymentTerms,
               status,
               paymentLink: paymentLink.trim() || undefined,
               paidAt: paidAt || undefined,
@@ -829,7 +897,8 @@ export function QuoteEditor() {
         showSeal: showSeal === true,
         currency: docCurrency,
         validUntil,
-        paymentTerms: paymentTerms.trim(),
+        paymentTerms:
+          paymentTermsMode === "custom" ? paymentTermsCustom.trim() : paymentTerms.trim(),
         status,
         paymentLink: paymentLink.trim() || undefined,
         paidAt: paidAt || undefined,
@@ -1070,16 +1139,43 @@ export function QuoteEditor() {
               <label className="text-xs text-slate-500">Payment terms</label>
               <select
                 className="mt-1 w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
-                value={paymentTerms}
-                onChange={(e) => setPaymentTerms(e.target.value)}
+                value={paymentTermsMode === "custom" ? "__custom__" : paymentTerms}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__custom__") {
+                    setPaymentTermsMode("custom");
+                    if (!paymentTermsCustom) setPaymentTermsCustom(paymentTerms.trim());
+                    return;
+                  }
+                  setPaymentTermsMode("preset");
+                  setPaymentTerms(v);
+                }}
               >
-                <option value="Due on receipt">Due on receipt</option>
-                <option value="Net 7">Net 7</option>
-                <option value="Net 15">Net 15</option>
-                <option value="Net 30">Net 30</option>
-                <option value="Net 45">Net 45</option>
-                <option value="Net 60">Net 60</option>
+                {PAYMENT_TERMS_PRESETS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+                {recentPaymentTerms.length ? (
+                  <optgroup label="Recent custom">
+                    {recentPaymentTerms.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <option value="__custom__">Custom…</option>
               </select>
+              {paymentTermsMode === "custom" ? (
+                <input
+                  className="mt-2 w-full min-h-11 rounded border border-slate-300 px-3 py-2.5 text-sm leading-normal"
+                  placeholder="e.g., 50% upfront, 50% on delivery"
+                  value={paymentTermsCustom}
+                  onChange={(e) => setPaymentTermsCustom(e.target.value)}
+                  onBlur={() => setPaymentTerms(paymentTermsCustom.trim())}
+                />
+              ) : null}
             </div>
             <div>
               <label className="text-xs text-slate-500">Status</label>
