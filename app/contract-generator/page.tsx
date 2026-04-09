@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.zxaigc.online";
+
 export const metadata: Metadata = {
   title: "Contract generator (sales agreement) for SMBs",
   description:
@@ -46,8 +48,13 @@ export default function ContractGeneratorLanding() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "/" },
-              { "@type": "ListItem", position: 2, name: "Contract generator", item: "/contract-generator" },
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Contract generator",
+                item: `${SITE_URL}/contract-generator`,
+              },
             ],
           }),
         }}

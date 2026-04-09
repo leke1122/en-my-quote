@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.zxaigc.online";
+
 export const metadata: Metadata = {
   title: "Quote generator (mobile-first) for small business",
   description:
@@ -46,8 +48,13 @@ export default function QuoteGeneratorLanding() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "/" },
-              { "@type": "ListItem", position: 2, name: "Quote generator", item: "/quote-generator" },
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Quote generator",
+                item: `${SITE_URL}/quote-generator`,
+              },
             ],
           }),
         }}

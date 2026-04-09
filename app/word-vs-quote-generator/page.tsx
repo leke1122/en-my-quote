@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.zxaigc.online";
+
 export const metadata: Metadata = {
   title: "Word/Excel vs quote generator: which is better for SMBs?",
   description:
@@ -46,8 +48,13 @@ export default function WordVsQuoteGeneratorPage() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "/" },
-              { "@type": "ListItem", position: 2, name: "Word vs quote generator", item: "/word-vs-quote-generator" },
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Word vs quote generator",
+                item: `${SITE_URL}/word-vs-quote-generator`,
+              },
             ],
           }),
         }}

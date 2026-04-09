@@ -3,6 +3,8 @@ import Link from "next/link";
 import Script from "next/script";
 import { GUIDES, getGuideBySlug } from "@/lib/guides";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.zxaigc.online";
+
 export function generateStaticParams() {
   return GUIDES.map((p) => ({ slug: p.slug }));
 }
@@ -107,9 +109,14 @@ export default function GuidePostPage({ params }: { params: { slug: string } }) 
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "/" },
-              { "@type": "ListItem", position: 2, name: "Guides", item: "/guides" },
-              { "@type": "ListItem", position: 3, name: post.title, item: `/guides/${post.slug}` },
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: "Guides", item: `${SITE_URL}/guides` },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: post.title,
+                item: `${SITE_URL}/guides/${post.slug}`,
+              },
             ],
           }),
         }}
