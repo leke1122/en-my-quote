@@ -99,6 +99,51 @@ type LineTextDraft = Record<string, { price?: string; qty?: string }>;
 
 type ExtraFeeAmountDraft = Record<string, string>;
 const QUOTE_TERMS_TEMPLATE_KEY = "quote_terms_template_v1";
+const QUOTE_EDITOR_AUTOSAVE_KEY = "quote_editor_autosave_v1";
+
+interface QuoteEditorAutosave {
+  savedAt: string;
+  quoteNo: string;
+  date: string;
+  validUntil: string;
+  paymentTerms: string;
+  status: QuoteStatusBase;
+  paymentLink: string;
+  paidAt: string;
+  companyId: string;
+  customerId: string;
+  customerQuery: string;
+  lines: QuoteLine[];
+  taxIncluded: boolean;
+  taxRate: number;
+  currency: string;
+  extraFees: QuoteExtraFee[];
+  terms: string[];
+  showSeal: boolean;
+}
+
+function loadQuoteEditorAutosave(): QuoteEditorAutosave | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(QUOTE_EDITOR_AUTOSAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as QuoteEditorAutosave;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveQuoteEditorAutosave(payload: QuoteEditorAutosave): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(QUOTE_EDITOR_AUTOSAVE_KEY, JSON.stringify(payload));
+}
+
+function clearQuoteEditorAutosave(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(QUOTE_EDITOR_AUTOSAVE_KEY);
+}
 
 function loadQuoteTermsTemplate(): string[] {
   if (typeof window === "undefined") return [];
@@ -195,6 +240,9 @@ export function QuoteEditor() {
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState("");
   const [saveHint, setSaveHint] = useState("");
+  const [formError, setFormError] = useState("");
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [autosaveAvailableAt, setAutosaveAvailableAt] = useState("");
   /** After manual quote-no edit, stop auto preview override; reset when company/date changes */
   const [quoteNoLocked, setQuoteNoLocked] = useState(false);
   /** Export image/PDF: checked=color, unchecked=grayscale (default grayscale) */
@@ -253,6 +301,8 @@ export function QuoteEditor() {
         const q = getQuotes().find((x) => x.id === quoteIdParam);
         if (q) {
           if (!cancelled) {
+            clearQuoteEditorAutosave();
+            setAutosaveAvailableAt("");
             setQuoteId(q.id);
             setIsDraft(false);
             setSuppressAutoQuoteNo(false);
@@ -314,9 +364,12 @@ export function QuoteEditor() {
       const a = (def?.abbr ?? "NA").toUpperCase();
       const d = dateToYmdCompact(todayIso());
       setQuoteNo(peekNextQuoteNo(a, d));
+      const autosave = loadQuoteEditorAutosave();
+      setAutosaveAvailableAt(autosave?.savedAt ?? "");
     };
 
     void bootstrap();
+    setBootstrapped(true);
     return () => {
       cancelled = true;
     };
@@ -357,6 +410,88 @@ export function QuoteEditor() {
   const subtotal = quoteSubtotal(lines);
   const taxAmt = quoteTax(subtotal, taxIncluded, taxRate);
   const grand = quoteGrandTotal(lines, taxIncluded, taxRate, extraFees);
+
+  useEffect(() => {
+    if (!bootstrapped) return;
+    if (quoteIdParam || quoteId || shareParam) return;
+    const timer = window.setTimeout(() => {
+      const payload: QuoteEditorAutosave = {
+        savedAt: new Date().toISOString(),
+        quoteNo,
+        date,
+        validUntil,
+        paymentTerms,
+        status,
+        paymentLink,
+        paidAt,
+        companyId,
+        customerId,
+        customerQuery,
+        lines,
+        taxIncluded,
+        taxRate,
+        currency,
+        extraFees,
+        terms,
+        showSeal,
+      };
+      saveQuoteEditorAutosave(payload);
+      setAutosaveAvailableAt(payload.savedAt);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [
+    bootstrapped,
+    quoteIdParam,
+    quoteId,
+    shareParam,
+    quoteNo,
+    date,
+    validUntil,
+    paymentTerms,
+    status,
+    paymentLink,
+    paidAt,
+    companyId,
+    customerId,
+    customerQuery,
+    lines,
+    taxIncluded,
+    taxRate,
+    currency,
+    extraFees,
+    terms,
+    showSeal,
+  ]);
+
+  function restoreAutosave() {
+    const draft = loadQuoteEditorAutosave();
+    if (!draft) return;
+    setQuoteNo(draft.quoteNo);
+    setDate(draft.date);
+    setValidUntil(draft.validUntil);
+    setPaymentTerms(draft.paymentTerms);
+    setStatus(draft.status);
+    setPaymentLink(draft.paymentLink);
+    setPaidAt(draft.paidAt);
+    setCompanyId(draft.companyId);
+    setCustomerId(draft.customerId);
+    setCustomerQuery(draft.customerQuery);
+    setLines(draft.lines);
+    setTaxIncluded(draft.taxIncluded);
+    setTaxRate(draft.taxRate);
+    setCurrency(draft.currency);
+    setExtraFees(draft.extraFees);
+    setTerms(draft.terms);
+    setShowSeal(draft.showSeal);
+    setLineTextDraft({});
+    setExtraFeeAmountDraft({});
+    setSaveHint(`Restored local draft from ${new Date(draft.savedAt).toLocaleString()}`);
+  }
+
+  function dismissAutosave() {
+    clearQuoteEditorAutosave();
+    setAutosaveAvailableAt("");
+  }
 
   function addProductLine(p: Product) {
     const price = p.price;
@@ -461,16 +596,20 @@ export function QuoteEditor() {
   }
 
   async function saveQuote() {
+    setFormError("");
     if (!companyId) {
-      alert("Please select your company (add it under Company if needed).");
+      setFormError("Please select a seller (your company).");
+      document.getElementById("quote-seller-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (!customerId) {
-      alert("Please select or add a customer.");
+      setFormError("Please select or add a customer.");
+      document.getElementById("quote-customer-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (lines.length === 0) {
-      alert("Please add at least one line item.");
+      setFormError("Please add at least one line item.");
+      document.getElementById("quote-lines-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     const now = new Date().toISOString();
@@ -546,6 +685,8 @@ export function QuoteEditor() {
       }
     }
     refreshStores();
+    clearQuoteEditorAutosave();
+    setAutosaveAvailableAt("");
     setSaveHint(`Saved locally at ${new Date().toLocaleTimeString()}`);
   }
 
@@ -824,6 +965,12 @@ export function QuoteEditor() {
         }
       />
 
+      {formError ? (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {formError}
+        </div>
+      ) : null}
+
       <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
         <input
           type="checkbox"
@@ -843,6 +990,19 @@ export function QuoteEditor() {
       <p className="mb-3 text-xs leading-relaxed text-slate-500">
         Tip: Quote numbers increment when you save. Before the first save, the preview number may not change.
       </p>
+      {autosaveAvailableAt && !quoteIdParam && !quoteId ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span>
+            Local draft autosaved at {new Date(autosaveAvailableAt).toLocaleString()}.
+          </span>
+          <TextButton variant="ghost" className="!px-0" onClick={restoreAutosave}>
+            Restore
+          </TextButton>
+          <TextButton variant="ghost" className="!px-0" onClick={dismissAutosave}>
+            Discard
+          </TextButton>
+        </div>
+      ) : null}
 
       <div
         id="quote-print"
@@ -957,7 +1117,10 @@ export function QuoteEditor() {
               />
             </div>
             <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
-              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+              <div
+                id="quote-seller-section"
+                className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4"
+              >
                 <label className="text-xs font-medium text-slate-600">Seller</label>
                 <select
                   className="mt-1 w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
@@ -1000,7 +1163,10 @@ export function QuoteEditor() {
                 )}
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+              <div
+                id="quote-customer-section"
+                className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4"
+              >
                 <label className="text-xs font-medium text-slate-600">Customer</label>
                 <div className="quote-no-print mt-1 flex flex-col gap-2 sm:flex-row sm:items-start">
                   <div className="relative min-w-0 flex-1">
@@ -1070,7 +1236,7 @@ export function QuoteEditor() {
           </div>
         </div>
 
-        <div className="py-5">
+        <div id="quote-lines-section" className="py-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <TextButton
               variant="primary"

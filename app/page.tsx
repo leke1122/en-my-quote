@@ -155,6 +155,51 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="surface-card mb-8 p-5 sm:mb-10 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">New here? Start in 3 steps</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              Set up once, then quote on mobile in minutes.
+            </p>
+          </div>
+          <Link href="/help" className="text-sm font-semibold text-slate-800 underline-offset-2 hover:underline">
+            Full guide
+          </Link>
+        </div>
+        <ol className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          <li className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-500">STEP 1</p>
+            <p className="mt-1 font-semibold text-slate-900">Create your company profile</p>
+            <p className="mt-1 text-slate-600">Add legal name, address, and banking details once.</p>
+            <Link href="/company" className="mt-3 inline-block text-sm font-semibold text-slate-900 underline-offset-2 hover:underline">
+              Open company
+            </Link>
+          </li>
+          <li className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-500">STEP 2</p>
+            <p className="mt-1 font-semibold text-slate-900">Add customers and products</p>
+            <p className="mt-1 text-slate-600">Reuse records to avoid retyping on every quote.</p>
+            <div className="mt-3 flex gap-3">
+              <Link href="/customers" className="text-sm font-semibold text-slate-900 underline-offset-2 hover:underline">
+                Customers
+              </Link>
+              <Link href="/products" className="text-sm font-semibold text-slate-900 underline-offset-2 hover:underline">
+                Products
+              </Link>
+            </div>
+          </li>
+          <li className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-500">STEP 3</p>
+            <p className="mt-1 font-semibold text-slate-900">Create and send your first quote</p>
+            <p className="mt-1 text-slate-600">Use payment terms, share link, and track status.</p>
+            <Link href="/quote/new" className="mt-3 inline-block text-sm font-semibold text-slate-900 underline-offset-2 hover:underline">
+              New quote
+            </Link>
+          </li>
+        </ol>
+      </section>
+
       <HomePricingAndShop />
 
       <section className="surface-card mt-8 p-5 sm:p-6">
