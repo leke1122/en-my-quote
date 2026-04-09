@@ -23,13 +23,15 @@ export async function GET(request: Request) {
   } catch (e) {
     const url = new URL(request.url);
     const redirect = safeRedirectPath(url.searchParams.get("redirect"));
-    const msg =
-      e instanceof Error
-        ? e.message
-        : "Google OAuth is not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI).";
     const login = new URL("/login", url.origin);
     login.searchParams.set("redirect", redirect);
-    login.searchParams.set("error", msg);
+    login.searchParams.set("error", "google_oauth_not_configured");
+    if (process.env.NODE_ENV !== "production") {
+      login.searchParams.set(
+        "error_detail",
+        e instanceof Error ? e.message : "Google OAuth is not configured."
+      );
+    }
     return NextResponse.redirect(login);
   }
 
