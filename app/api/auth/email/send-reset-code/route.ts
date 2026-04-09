@@ -11,27 +11,30 @@ function randomSixDigit(): string {
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "服务端未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured on the server." }, { status: 503 });
   }
 
   let body: { email?: string };
   try {
     body = (await request.json()) as { email?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
     .trim()
     .toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    // 不暴露账号是否存在
-    return NextResponse.json({ ok: true, message: "若该邮箱已注册，验证码将发送到邮箱（含垃圾邮件箱）" });
+    // Do not reveal whether the account exists
+    return NextResponse.json({
+      ok: true,
+      message: "If this email is registered, a code was sent to the inbox (check spam).",
+    });
   }
 
   const latest = await prisma.emailVerificationCode.findFirst({
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     orderBy: { createdAt: "desc" },
   });
   if (latest && Date.now() - latest.createdAt.getTime() < 60_000) {
-    return NextResponse.json({ ok: false, error: "操作过于频繁，请稍后再试（60 秒）" }, { status: 429 });
+    return NextResponse.json({ ok: false, error: "Too many requests. Wait 60 seconds and try again." }, { status: 429 });
   }
 
   const code = randomSixDigit();
@@ -58,7 +61,7 @@ export async function POST(request: Request) {
 
   const payload: Record<string, unknown> = {
     ok: true,
-    message: "若该邮箱已注册，验证码将发送到邮箱（含垃圾邮件箱）",
+    message: "If this email is registered, a code was sent to the inbox (check spam).",
   };
   if (sent.via === "dev" && process.env.NODE_ENV === "development") {
     payload.debugCode = code;

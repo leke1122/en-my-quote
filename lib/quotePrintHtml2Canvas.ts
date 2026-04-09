@@ -3,7 +3,7 @@ import {
   resetContractExportCaptureMeta,
 } from "@/lib/contractExportSeal";
 
-/** 与 QuoteEditor 导出图片时 onclone 逻辑一致 */
+/** Matches QuoteEditor export image onclone behavior */
 
 export interface QuoteHtml2CanvasCloneOpts {
   hasTermsContent: boolean;
@@ -57,10 +57,10 @@ function tuneQuoteTableLayout(root: HTMLElement) {
   const adjustForEmptyColumns = (base: number[]) => {
     if (base.length < 2) return base;
     const emptyFlags = base.map((_, i) => colIsEmpty(i));
-    // 不动图片列（若存在）和主“名称/型号/规格/备注”列；仅当整列为空时压缩它。
+    // Keep image column (if any) and main name/model/spec/remark columns; shrink only fully empty columns.
     const protect = new Set<number>();
-    if (base.length === 9) protect.add(0); // 图
-    // 无图：0 名称 1 型号 2 规格 ... 7 备注；有图：1 名称 2 型号 3 规格 ... 8 备注
+    if (base.length === 9) protect.add(0); // image col
+    // No image: 0 name 1 model 2 spec ... 7 remark; with image: 1 name 2 model 3 spec ... 8 remark
     const nameIdx = base.length === 9 ? 1 : 0;
     const modelIdx = base.length === 9 ? 2 : 1;
     const specIdx = base.length === 9 ? 3 : 2;
@@ -72,7 +72,7 @@ function tuneQuoteTableLayout(root: HTMLElement) {
     for (let i = 0; i < out.length; i++) {
       if (protect.has(i)) continue;
       if (emptyFlags[i]) {
-        const minW = i === 0 && base.length === 9 ? 6 : 4; // 图列保留 6%，其他空列 4%
+        const minW = i === 0 && base.length === 9 ? 6 : 4; // image col min 6%, other empty cols 4%
         if (out[i] > minW) {
           freed += out[i] - minW;
           out[i] = minW;
@@ -80,7 +80,7 @@ function tuneQuoteTableLayout(root: HTMLElement) {
       }
     }
     if (freed <= 0) return out;
-    // 把释放出来的宽度优先补到名称/规格/备注
+    // Give freed width mostly to name/spec/remark
     const boost = [
       { i: nameIdx, w: 0.42 },
       { i: specIdx, w: 0.28 },
@@ -90,14 +90,14 @@ function tuneQuoteTableLayout(root: HTMLElement) {
     for (const b of boost) {
       out[b.i] += Math.round(freed * b.w * 10) / 10;
     }
-    // 归一化为 100（避免小数误差）
+    // Normalize sum to 100 (float correction)
     const sum = out.reduce((a, b) => a + b, 0);
     if (sum !== 100) out[nameIdx] += 100 - sum;
     return out;
   };
 
   const colCount = table.querySelectorAll("thead th").length;
-  // 无图模式：名称/型号/规格/备注给更多空间；有图模式额外预留缩略图列。
+  // No-image: more width for name/model/spec/remark; with image: reserve thumbnail column.
   if (colCount === 8) {
     const base =
       rows.length >= 18 || longest >= 42
@@ -251,7 +251,7 @@ export function quoteHtml2canvasOnClone(clonedDoc: Document, opts: QuoteHtml2Can
     if (input.type === "date") {
       wrap.textContent = input.value || "—";
     } else if (input.type === "checkbox") {
-      wrap.textContent = input.checked ? "是" : "否";
+      wrap.textContent = input.checked ? "Yes" : "No";
     } else {
       wrap.textContent = input.value || "—";
     }

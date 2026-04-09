@@ -7,16 +7,16 @@ export async function pullProjectDataFromCloud(): Promise<CloudPullResult> {
     const res = await fetch("/api/project-data", { credentials: "include" });
     const json = (await res.json()) as { ok?: boolean; payload?: unknown; error?: string };
     if (!res.ok || !json.ok || !json.payload) {
-      return { ok: false, error: json.error || `拉取失败（${res.status}）` };
+      return { ok: false, error: json.error || `Pull failed (${res.status})` };
     }
     const parsed = parseBackupFile(JSON.stringify(json.payload));
     if (!parsed.ok) {
-      return { ok: false, error: `云端数据格式异常：${parsed.error}` };
+      return { ok: false, error: `Cloud payload invalid: ${parsed.error}` };
     }
     applyLocalDataBackup(parsed.data);
     return { ok: true };
   } catch {
-    return { ok: false, error: "网络异常，无法拉取云端数据" };
+    return { ok: false, error: "Network error while pulling cloud data" };
   }
 }
 
@@ -31,11 +31,11 @@ export async function pushProjectDataToCloud(includeSecrets = false): Promise<Cl
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      return { ok: false, error: json.error || `同步失败（${res.status}）` };
+      return { ok: false, error: json.error || `Sync failed (${res.status})` };
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: "网络异常，无法同步到云端" };
+    return { ok: false, error: "Network error while syncing to cloud" };
   }
 }
 

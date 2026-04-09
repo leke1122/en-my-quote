@@ -8,8 +8,11 @@ import { compositeSealsInColorOnCanvasAsync } from "@/lib/contractExportSeal";
 import { parseQuoteSharePayload, type QuoteSharePayload } from "@/lib/quoteSharePayload";
 import { quoteHtml2canvasOnClone } from "@/lib/quotePrintHtml2Canvas";
 import { decodeSharePayload } from "@/lib/share";
+import { markQuoteViewedByQuoteNo } from "@/lib/storage";
 import type { QuoteExtraFee } from "@/lib/types";
 import { QuoteShareReadonlyPrint } from "./QuoteShareReadonlyPrint";
+
+const VIEW_DEDUPE_WINDOW_MS = 30 * 60 * 1000;
 
 function termsHasContent(terms: string[]): boolean {
   return terms.some((t) => t.trim().length > 0);
@@ -38,18 +41,37 @@ export function QuoteSharePreviewClient() {
       try {
         raw = decodeURIComponent(enc);
       } catch {
-        /* 保持原样 */
+        /* leave raw */
       }
       const parsed = await decodeSharePayload(raw);
       if (cancelled) return;
       const q = parseQuoteSharePayload(parsed);
       if (!q) {
         setData(null);
-        setDecodeErr("无效或无法识别的分享数据。");
+        setDecodeErr("Invalid or unrecognized share data.");
         return;
       }
       setDecodeErr("");
       setData(q);
+      const key = `quote-viewed:${q.quoteNo}`;
+      const now = Date.now();
+      let canMark = true;
+      try {
+        const last = Number(sessionStorage.getItem(key) || "0");
+        if (Number.isFinite(last) && now - last < VIEW_DEDUPE_WINDOW_MS) {
+          canMark = false;
+        }
+      } catch {
+        /* ignore */
+      }
+      if (canMark) {
+        markQuoteViewedByQuoteNo(q.quoteNo);
+        try {
+          sessionStorage.setItem(key, String(now));
+        } catch {
+          /* ignore */
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -88,7 +110,7 @@ export function QuoteSharePreviewClient() {
           setCapErr("");
         }
       } catch {
-        if (!cancelled) setCapErr("生成预览图失败，请稍后重试。");
+        if (!cancelled) setCapErr("Could not generate preview. Try again.");
       }
     }, 100);
     return () => {
@@ -99,30 +121,32 @@ export function QuoteSharePreviewClient() {
 
   if (data === undefined) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-slate-600">加载中…</div>
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-slate-600">Loading…</div>
     );
   }
 
   if (!enc || data === null) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-red-600">
-        {decodeErr || "缺少分享参数或链接无效。"}
+        {decodeErr || "Missing share parameter or invalid link."}
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <p className="mb-4 text-center text-sm text-slate-600">以下为报价预览（只读，与默认导出图片样式一致）</p>
+      <p className="mb-4 text-center text-sm text-slate-600">
+        Read-only quote preview (matches default export image styling).
+      </p>
       {capErr ? <p className="mb-4 text-center text-sm text-red-600">{capErr}</p> : null}
       {!imgUrl && !capErr ? (
-        <p className="mb-6 text-center text-sm text-slate-500">正在生成预览图…</p>
+        <p className="mb-6 text-center text-sm text-slate-500">Generating preview…</p>
       ) : null}
       {imgUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imgUrl}
-          alt="报价预览"
+          alt="Quote preview"
           className="mx-auto block max-w-full rounded border border-slate-200 bg-white shadow-sm"
         />
       ) : null}

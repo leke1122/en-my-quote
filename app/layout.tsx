@@ -1,28 +1,30 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { I18nProvider } from "@/components/i18n/I18nProvider";
 import { SubscriptionProvider } from "@/components/subscription/SubscriptionProvider";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.quote.zxaigc.online";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.zxaigc.online";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "智序签单",
-    template: "%s | 智序签单",
+    default: "QuoteFlow",
+    template: "%s | QuoteFlow",
   },
   description:
-    "用于中小团队的报价单与销售合同生成工具，支持手机端操作、历史记录查询、图片/PDF 导出与本地数据备份。",
-  keywords: ["报价单生成", "销售合同生成", "报价管理", "合同管理", "移动端报价工具"],
+    "Mobile-first quoting and contracting for SMBs. Create quotes & contracts, share links, get e-sign acceptance, and get paid.",
+  keywords: ["quotation", "proposal", "quote generator", "contract", "e-sign", "mobile"],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "智序签单",
+    title: "QuoteFlow",
     description:
-      "报价与合同一体化工具：支持商品/客户管理、报价合同生成、图片与 PDF 导出、手机端使用。",
+      "Create quotes & contracts, export PDF, share links, collect e-sign acceptance — mobile first.",
     url: siteUrl,
-    siteName: "智序签单",
-    locale: "zh_CN",
+    siteName: "QuoteFlow",
+    locale: "en_US",
     type: "website",
   },
 };
@@ -33,9 +35,63 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en-US">
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-        <SubscriptionProvider>{children}</SubscriptionProvider>
+        <I18nProvider>
+          <SubscriptionProvider>
+            <div className="min-h-screen">
+              {children}
+              <footer className="border-t border-slate-200 bg-white">
+                <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="leading-relaxed">
+                    © {new Date().getFullYear()} QuoteFlow. Built for US & EU SMB workflows.
+                  </p>
+                  <nav className="flex flex-wrap gap-x-4 gap-y-2">
+                    <Link href="/guides" className="hover:text-slate-900 hover:underline hover:underline-offset-2">
+                      Guides
+                    </Link>
+                    <Link
+                      href="/quote-generator"
+                      className="hover:text-slate-900 hover:underline hover:underline-offset-2"
+                    >
+                      Quote generator
+                    </Link>
+                    <Link
+                      href="/contract-generator"
+                      className="hover:text-slate-900 hover:underline hover:underline-offset-2"
+                    >
+                      Contract generator
+                    </Link>
+                    <Link
+                      href="/word-vs-quote-generator"
+                      className="hover:text-slate-900 hover:underline hover:underline-offset-2"
+                    >
+                      Word vs generator
+                    </Link>
+                    <Link
+                      href="/seo-checklist"
+                      className="hover:text-slate-900 hover:underline hover:underline-offset-2"
+                    >
+                      SEO checklist
+                    </Link>
+                    <Link href="/terms" className="hover:text-slate-900 hover:underline hover:underline-offset-2">
+                      Terms
+                    </Link>
+                    <Link href="/privacy" className="hover:text-slate-900 hover:underline hover:underline-offset-2">
+                      Privacy
+                    </Link>
+                    <Link href="/refund" className="hover:text-slate-900 hover:underline hover:underline-offset-2">
+                      Refunds
+                    </Link>
+                    <Link href="/contact" className="hover:text-slate-900 hover:underline hover:underline-offset-2">
+                      Contact
+                    </Link>
+                  </nav>
+                </div>
+              </footer>
+            </div>
+          </SubscriptionProvider>
+        </I18nProvider>
       </body>
     </html>
   );

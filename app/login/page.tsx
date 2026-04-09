@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { markPostLoginSubscriptionCheck } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 
@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const oauthError = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("error");
+  }, []);
 
   function redirectTarget(): string {
     if (typeof window === "undefined") return "/settings";
@@ -34,14 +38,14 @@ export default function LoginPage() {
       });
       const j = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !j.ok) {
-        setMsg(j.error || "登录失败");
+        setMsg(j.error || "Sign in failed");
         return;
       }
       markPostLoginSubscriptionCheck();
       router.push(redirectTarget());
       router.refresh();
     } catch {
-      setMsg("网络错误");
+      setMsg("Network error");
     } finally {
       setLoading(false);
     }
@@ -49,21 +53,34 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 py-10">
-      <h1 className="text-center text-xl font-semibold text-slate-900">登录</h1>
-      <p className="mt-2 text-center text-sm text-slate-600">使用已注册的邮箱与密码登录云端账号（需配置数据库）。</p>
+      <h1 className="text-center text-xl font-semibold text-slate-900">Sign in</h1>
+      <p className="mt-2 text-center text-sm text-slate-600">
+        Sign in with your email and password (cloud mode requires a configured database).
+      </p>
 
       <div className="mt-4 flex justify-center">
         <Link
           href="/"
           className="inline-flex w-full max-w-xs items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 sm:w-auto"
         >
-          返回首页
+          Back to home
         </Link>
       </div>
 
       <div className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <a
+          href={`/api/auth/google/start?redirect=${encodeURIComponent(redirectTarget())}`}
+          className="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          Continue with Google
+        </a>
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span>or</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
         <div>
-          <label className="text-xs text-slate-600">邮箱</label>
+          <label className="text-xs text-slate-600">Email</label>
           <input
             type="email"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -73,7 +90,7 @@ export default function LoginPage() {
           />
         </div>
         <div>
-          <label className="text-xs text-slate-600">密码</label>
+          <label className="text-xs text-slate-600">Password</label>
           <input
             type="password"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -83,22 +100,23 @@ export default function LoginPage() {
           />
         </div>
         <TextButton variant="primary" disabled={loading} onClick={() => void login()}>
-          {loading ? "登录中…" : "登录"}
+          {loading ? "Signing in…" : "Sign in"}
         </TextButton>
+        {oauthError ? <p className="text-sm text-red-700">{oauthError}</p> : null}
         {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
       </div>
 
       <p className="mt-6 text-center text-sm">
         <Link href="/register" className="text-slate-800 underline-offset-2 hover:underline">
-          没有账号？去注册
+          Create account
         </Link>
         {" · "}
         <Link href="/forgot-password" className="text-slate-800 underline-offset-2 hover:underline">
-          忘记密码
+          Forgot password
         </Link>
         {" · "}
         <Link href="/" className="text-slate-800 underline-offset-2 hover:underline">
-          首页
+          Home
         </Link>
       </p>
     </div>

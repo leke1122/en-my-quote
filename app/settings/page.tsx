@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DataBackupSection } from "@/components/settings/DataBackupSection";
 import { PersonalInfoSection } from "@/components/settings/PersonalInfoSection";
 import { PageHeader } from "@/components/PageHeader";
 import { TextButton } from "@/components/TextButton";
+import { formatMoney, normalizeDocumentCurrency } from "@/lib/format";
 import { getSettings, setSettings } from "@/lib/storage";
 import type { AppSettings } from "@/lib/types";
 
@@ -19,7 +21,7 @@ export default function SettingsPage() {
 
   function save() {
     setSettings(form);
-    alert("已保存到本地");
+    alert("Saved locally.");
   }
 
   async function logout() {
@@ -37,10 +39,10 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 py-6">
       <PageHeader
-        title="设置"
+        title="Settings"
         actions={
           <TextButton variant="secondary" className="text-red-700" onClick={() => void logout()}>
-            退出账号
+            Sign out
           </TextButton>
         }
       />
@@ -49,53 +51,49 @@ export default function SettingsPage() {
       <DataBackupSection />
 
       <section className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-slate-900">关于与联系 / 发卡续费</h2>
-        <p className="text-sm leading-relaxed text-slate-600">
-          智序签单：启用服务端数据库后，<strong>账号与订阅</strong>由服务器维护；您在应用中录入的报价、合同等业务内容在使用时仍缓存在当前浏览器，便于操作，请配合「数据导出」定期备份。
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Regional defaults</h2>
+        <p className="mb-4 text-sm leading-relaxed text-slate-600">
+          Default ISO 4217 currency for <strong>new</strong> quotes and contracts. Each document can still use its own
+          currency. Example preview: {formatMoney(1234.56, normalizeDocumentCurrency(form.documentCurrency))}.
         </p>
-        <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
-          <p>
-            <span className="text-slate-500">微信扫码开通：</span>
-            <button
-              type="button"
-              onClick={() => router.push("/pay/wechat")}
-              className="font-medium text-slate-900 underline-offset-2 hover:underline"
-            >
-              打开支付页（自动顺延激活）
-            </button>
-          </p>
-          <p>
-            <span className="text-slate-500">续费店铺：</span>
-            <a
-              href="https://hcwnn1122.taobao.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-slate-900 underline-offset-2 hover:underline"
-            >
-              https://hcwnn1122.taobao.com
-            </a>
-          </p>
-          <p>
-            <span className="text-slate-500">购买激活码：</span>
-            <a
-              href="https://hcwnn1122.taobao.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-slate-900 underline-offset-2 hover:underline"
-            >
-              打开店铺 hcwnn1122.taobao.com
-            </a>
-          </p>
-          <p>
-            <span className="text-slate-500">开发者微信：</span>
-            <span className="font-mono text-slate-900">leshi1122</span>
-          </p>
-          <p className="text-slate-600">售后与定制开发，欢迎联系。</p>
-        </div>
+        <label className="block max-w-xs text-sm">
+          <span className="text-slate-700">Document currency</span>
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono uppercase"
+            maxLength={3}
+            autoComplete="off"
+            value={form.documentCurrency}
+            onChange={(e) =>
+              setForm((s) => ({
+                ...s,
+                documentCurrency: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3),
+              }))
+            }
+            onBlur={() =>
+              setForm((s) => ({
+                ...s,
+                documentCurrency: normalizeDocumentCurrency(s.documentCurrency),
+              }))
+            }
+          />
+        </label>
+      </section>
+
+      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Account & billing</h2>
+        <p className="text-sm leading-relaxed text-slate-600">
+          With cloud mode enabled, your <strong>account and subscription</strong> are stored on the server. Quotes and
+          contracts are cached in this browser while you work — use <strong>Data export</strong> below for backups.
+        </p>
+        <p className="mt-3 text-sm">
+          <Link href="/pricing" className="font-semibold text-sky-700 underline-offset-2 hover:underline">
+            View pricing & subscribe (Stripe)
+          </Link>
+        </p>
       </section>
 
       <TextButton variant="primary" onClick={save}>
-        保存设置
+        Save settings
       </TextButton>
     </div>
   );

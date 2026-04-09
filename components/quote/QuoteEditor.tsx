@@ -13,18 +13,21 @@ import { TextButton } from "@/components/TextButton";
 import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
 import { canvasGrayscaleForExport } from "@/lib/canvasGrayscale";
 import { compositeSealsInColorOnCanvasAsync } from "@/lib/contractExportSeal";
-import { formatCurrency } from "@/lib/format";
+import { formatMoney, normalizeDocumentCurrency } from "@/lib/format";
 import { readImageCompressedDataUrl } from "@/lib/imageUpload";
 import type { QuoteSharePayload } from "@/lib/quoteSharePayload";
 import { quoteHtml2canvasOnClone } from "@/lib/quotePrintHtml2Canvas";
 import { quoteGrandTotal, quoteSubtotal, quoteTax } from "@/lib/quoteTotals";
 import { encodeSharePayload } from "@/lib/share";
+import { quoteDisplayStatus, toBaseQuoteStatus, type QuoteStatusBase } from "@/lib/quoteStatus";
 import { commitNextQuoteNo, dateToYmdCompact, peekNextQuoteNo } from "@/lib/quoteNumber";
 import {
   getCompanies,
   getCustomers,
+  markQuoteStatusById,
   getProducts,
   getQuotes,
+  getSettings,
   setCustomers,
   setProducts,
   setQuotes,
@@ -43,6 +46,14 @@ function todayIso(): string {
   const z = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
+
+function isoAfterDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const z = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+
 
 function newLineId(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -148,6 +159,11 @@ export function QuoteEditor() {
   const [isDraft, setIsDraft] = useState(true);
   const [quoteNo, setQuoteNo] = useState("");
   const [date, setDate] = useState(todayIso);
+  const [validUntil, setValidUntil] = useState(() => isoAfterDays(14));
+  const [paymentTerms, setPaymentTerms] = useState("Net 30");
+  const [status, setStatus] = useState<QuoteStatusBase>("draft");
+  const [paymentLink, setPaymentLink] = useState("");
+  const [paidAt, setPaidAt] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
@@ -155,11 +171,12 @@ export function QuoteEditor() {
 
   const [lines, setLines] = useState<QuoteLine[]>([]);
   const [taxIncluded, setTaxIncluded] = useState(false);
-  const [taxRate, setTaxRate] = useState(13);
+  const [taxRate, setTaxRate] = useState(0);
+  const [currency, setCurrency] = useState("USD");
   const [extraFees, setExtraFees] = useState<QuoteExtraFee[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [showLineImages, setShowLineImages] = useState(true);
-  /** 报价单上是否叠印我司公章（与合同公章比例一致） */
+  /** Overlay company seal on quote (same scale as contract) */
   const [showSeal, setShowSeal] = useState(false);
   const [lineTextDraft, setLineTextDraft] = useState<LineTextDraft>({});
   const [extraFeeAmountDraft, setExtraFeeAmountDraft] = useState<ExtraFeeAmountDraft>({});
@@ -178,9 +195,9 @@ export function QuoteEditor() {
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState("");
   const [saveHint, setSaveHint] = useState("");
-  /** 用户改过单号后，不再用我司/日期自动覆盖预览单号；切换我司或日期会解除 */
+  /** After manual quote-no edit, stop auto preview override; reset when company/date changes */
   const [quoteNoLocked, setQuoteNoLocked] = useState(false);
-  /** 导出图片/PDF：勾选为彩色，不勾选为黑白（默认黑白） */
+  /** Export image/PDF: checked=color, unchecked=grayscale (default grayscale) */
   const [exportInColor, setExportInColor] = useState(false);
 
   const refreshStores = useCallback(() => {
@@ -202,6 +219,8 @@ export function QuoteEditor() {
     [customers, customerId]
   );
 
+  const docCurrency = useMemo(() => normalizeDocumentCurrency(currency), [currency]);
+
   const abbr = (company?.abbr ?? "NA").toUpperCase();
   const ymdCompact = dateToYmdCompact(date);
 
@@ -214,7 +233,7 @@ export function QuoteEditor() {
         try {
           shareEnc = decodeURIComponent(shareEnc);
         } catch {
-          /* 保持原样 */
+          /* leave raw */
         }
       }
 
@@ -225,7 +244,7 @@ export function QuoteEditor() {
           try {
             shareEnc = decodeURIComponent(shareEnc);
           } catch {
-            /* 保持原样 */
+            /* leave raw */
           }
         }
       }
@@ -239,12 +258,18 @@ export function QuoteEditor() {
             setSuppressAutoQuoteNo(false);
             setQuoteNo(q.quoteNo);
             setDate(q.date);
+            setValidUntil(q.validUntil ?? isoAfterDays(14));
+            setPaymentTerms(q.paymentTerms ?? "Net 30");
+            setStatus(toBaseQuoteStatus(q.status));
+            setPaymentLink(q.paymentLink ?? "");
+            setPaidAt(q.paidAt ?? "");
             setCompanyId(q.companyId);
             setCustomerId(q.customerId);
             setCustomerQuery("");
             setLines(q.lines);
             setTaxIncluded(q.taxIncluded);
-            setTaxRate(q.taxRate);
+            setTaxRate(typeof q.taxRate === "number" ? q.taxRate : 0);
+            setCurrency(q.currency ?? getSettings().documentCurrency);
             setExtraFees(q.extraFees);
             setTerms(Array.isArray(q.terms) ? q.terms : []);
             setShowSeal(q.showSeal === true);
@@ -268,12 +293,18 @@ export function QuoteEditor() {
       setIsDraft(true);
       setSuppressAutoQuoteNo(false);
       setDate(todayIso());
+      setValidUntil(isoAfterDays(14));
+      setPaymentTerms("Net 30");
+      setStatus("draft");
+      setPaymentLink("");
+      setPaidAt("");
       setCompanyId(def?.id ?? "");
       setCustomerId("");
       setCustomerQuery("");
       setLines([]);
       setTaxIncluded(false);
-      setTaxRate(13);
+      setTaxRate(0);
+      setCurrency(getSettings().documentCurrency);
       setExtraFees([]);
       setTerms(loadQuoteTermsTemplate());
       setShowSeal(false);
@@ -405,7 +436,7 @@ export function QuoteEditor() {
   function addExtraFee() {
     setExtraFees((prev) => [
       ...prev,
-      { id: newLineId(), name: "其他费用", amount: 0 },
+      { id: newLineId(), name: "Additional fee", amount: 0 },
     ]);
   }
 
@@ -431,15 +462,15 @@ export function QuoteEditor() {
 
   async function saveQuote() {
     if (!companyId) {
-      alert("请先在我司信息中维护公司主体并选择");
+      alert("Please select your company (add it under Company if needed).");
       return;
     }
     if (!customerId) {
-      alert("请选择客户或快速新建客户");
+      alert("Please select or add a customer.");
       return;
     }
     if (lines.length === 0) {
-      alert("请至少添加一条商品明细");
+      alert("Please add at least one line item.");
       return;
     }
     const now = new Date().toISOString();
@@ -467,6 +498,12 @@ export function QuoteEditor() {
         extraFees,
         terms,
         showSeal: showSeal === true,
+        validUntil,
+        paymentTerms: paymentTerms.trim(),
+        status,
+        paymentLink: paymentLink.trim() || undefined,
+        paidAt: paidAt || undefined,
+        currency: docCurrency,
         createdAt: now,
         updatedAt: now,
       };
@@ -489,6 +526,12 @@ export function QuoteEditor() {
               extraFees,
               terms,
               showSeal: showSeal === true,
+              validUntil,
+              paymentTerms: paymentTerms.trim(),
+              status,
+              paymentLink: paymentLink.trim() || undefined,
+              paidAt: paidAt || undefined,
+              currency: docCurrency,
               updatedAt: now,
             }
           : q
@@ -498,12 +541,31 @@ export function QuoteEditor() {
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
       if (!sync.ok) {
-        setSaveHint(`报价已保存本地，但云端同步失败：${sync.error}`);
+        setSaveHint(`Saved locally, but cloud sync failed: ${sync.error}`);
         return;
       }
     }
     refreshStores();
-    setSaveHint(`报价已保存（本地浏览器） ${new Date().toLocaleTimeString()}`);
+    setSaveHint(`Saved locally at ${new Date().toLocaleTimeString()}`);
+  }
+
+  async function markPaidNow() {
+    if (!quoteId) {
+      alert("Save this quote first.");
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    setStatus("paid");
+    setPaidAt(nowIso);
+    markQuoteStatusById(quoteId, "paid", { paidAt: nowIso });
+    if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
+      const sync = await pushProjectDataToCloud(true);
+      if (!sync.ok) {
+        setSaveHint(`Marked paid locally, but cloud sync failed: ${sync.error}`);
+        return;
+      }
+    }
+    setSaveHint(`Marked paid at ${new Date(nowIso).toLocaleTimeString()}`);
   }
 
   async function exportImage() {
@@ -579,7 +641,7 @@ export function QuoteEditor() {
 
   async function openShareModal() {
     if (!companyId) {
-      alert("请先选择我司主体");
+      alert("Please select your company first.");
       return;
     }
     setShareOpen(true);
@@ -616,20 +678,28 @@ export function QuoteEditor() {
               address: customer.address,
             }
           : null,
-        // 分享链接需要尽量短：不携带行内 base64 图片，避免超长 URL。
+        // Keep share URLs short: omit inline base64 images.
         lines: lines.map((l) => ({ ...l, image: undefined })),
         taxIncluded,
         taxRate,
         extraFees,
         terms,
         showSeal: showSeal === true,
+        currency: docCurrency,
+        validUntil,
+        paymentTerms: paymentTerms.trim(),
+        status,
+        paymentLink: paymentLink.trim() || undefined,
+        paidAt: paidAt || undefined,
       };
       const enc = await encodeSharePayload(payload);
       const base =
         typeof window !== "undefined" ? `${window.location.origin}/quote/preview` : "";
       const url = `${base}?share=${encodeURIComponent(enc)}`;
       if (url.length > 32000) {
-        setShareError("报价数据过大。分享已自动隐藏图片，如仍过大请减少明细，或改用生成图片/PDF。");
+        setShareError(
+          "This quote is too large to share as a link. Reduce line items or use Export image/PDF."
+        );
         return;
       }
       setShareUrl(url);
@@ -641,7 +711,7 @@ export function QuoteEditor() {
       });
       setShareQr(dataUrl);
     } catch {
-      setShareError("生成分享链接或二维码失败，请稍后重试。");
+      setShareError("Could not generate share link or QR. Please try again.");
     } finally {
       setShareLoading(false);
     }
@@ -650,9 +720,9 @@ export function QuoteEditor() {
   function copyShareUrl() {
     if (!shareUrl) return;
     void navigator.clipboard.writeText(shareUrl).then(
-      () => alert("链接已复制到剪贴板"),
+      () => alert("Link copied"),
       () => {
-        window.prompt("请手动复制以下链接", shareUrl);
+        window.prompt("Copy this link", shareUrl);
       }
     );
   }
@@ -661,7 +731,7 @@ export function QuoteEditor() {
     if (!shareQr) return;
     const a = document.createElement("a");
     a.href = shareQr;
-    a.download = `报价分享-${quoteNo || "二维码"}.png`;
+    a.download = `quote-share-${quoteNo || "qr"}.png`;
     a.click();
   }
 
@@ -675,7 +745,7 @@ export function QuoteEditor() {
   async function saveQuickProduct() {
     const rows = getProducts();
     if (!quickProduct.code.trim() || !quickProduct.name.trim()) {
-      alert("请填写商品编码与名称");
+      alert("Please enter product code and name.");
       return;
     }
     const id =
@@ -694,7 +764,7 @@ export function QuoteEditor() {
     setQuickProduct({ ...emptyQuickProduct, code: newProductCode([...rows, p]) });
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`商品已保存本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved locally, but cloud sync failed: ${sync.error}`);
     }
     refreshStores();
   }
@@ -702,7 +772,7 @@ export function QuoteEditor() {
   async function saveQuickCustomer() {
     const rows = getCustomers();
     if (!quickCustomer.name.trim()) {
-      alert("请填写客户名称");
+      alert("Please enter a customer name.");
       return;
     }
     const id =
@@ -722,7 +792,7 @@ export function QuoteEditor() {
     setQuickCustomer(emptyQuickCustomer);
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`客户已保存本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved locally, but cloud sync failed: ${sync.error}`);
     }
     refreshStores();
   }
@@ -739,17 +809,17 @@ export function QuoteEditor() {
       const compressed = await readImageCompressedDataUrl(f, { maxSide: 1200, quality: 0.8 });
       setQuickProduct((s) => ({ ...s, image: compressed }));
     } catch {
-      alert("图片处理失败，请换一张图片重试");
+      alert("Could not process that image. Try another file.");
     }
   }
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-6">
       <PageHeader
-        title="新建报价"
+        title="New quotation"
         actions={
           <Link href="/quote">
-            <TextButton variant="secondary">查询报价</TextButton>
+            <TextButton variant="secondary">My quotations</TextButton>
           </Link>
         }
       />
@@ -760,7 +830,7 @@ export function QuoteEditor() {
           checked={showLineImages}
           onChange={(e) => setShowLineImages(e.target.checked)}
         />
-        显示明细商品图片（取消勾选则隐藏图片列；导出图片与 PDF 时同样生效）
+        Show product images in line items (also affects export)
       </label>
       <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
         <input
@@ -768,10 +838,10 @@ export function QuoteEditor() {
           checked={showSeal}
           onChange={(e) => setShowSeal(e.target.checked)}
         />
-        显示公章（需在我司信息中上传公章图；勾选后在总价与条款之间显示，无条款则在总价与供方账户信息之间；导出时与合同一致保留公章原色叠印）
+        Show digital company seal (uploaded in Company settings)
       </label>
       <p className="mb-3 text-xs leading-relaxed text-slate-500">
-        提示：报价单号按“每天从 001 开始、每保存一次递增”。未保存前预览号可能保持不变，保存后才会占用并跳到下一个编号。
+        Tip: Quote numbers increment when you save. Before the first save, the preview number may not change.
       </p>
 
       <div
@@ -782,7 +852,7 @@ export function QuoteEditor() {
           <div className="flex items-start gap-3 sm:gap-4">
             <div className="w-16 shrink-0 sm:w-24" aria-hidden />
             <h2 className="min-w-0 flex-1 pt-1 text-center text-xl font-semibold tracking-wide text-slate-900">
-              报价单
+              Quotation
             </h2>
             <div className="quote-print-logo-cell flex h-16 w-20 shrink-0 items-start justify-end sm:h-20 sm:w-28">
               {company?.logo ? (
@@ -798,8 +868,8 @@ export function QuoteEditor() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-slate-500" htmlFor="quote-no-input">
-                报价单号：
-                <span className="quote-no-print">（可修改）</span>
+                Quote No.
+                <span className="quote-no-print"> (editable)</span>
               </label>
               <input
                 id="quote-no-input"
@@ -810,11 +880,11 @@ export function QuoteEditor() {
                   setQuoteNoLocked(true);
                   setQuoteNo(e.target.value);
                 }}
-                placeholder="自动生成，可直接修改"
+                placeholder="Auto generated (editable)"
               />
             </div>
             <div>
-              <label className="text-xs text-slate-500">报价日期：</label>
+              <label className="text-xs text-slate-500">Quote date</label>
               <input
                 type="date"
                 className="mt-1 w-full min-h-11 rounded border border-slate-300 px-3 py-2.5 text-sm leading-normal"
@@ -826,9 +896,69 @@ export function QuoteEditor() {
                 }}
               />
             </div>
+            <div>
+              <label className="text-xs text-slate-500">Valid until</label>
+              <input
+                type="date"
+                className="mt-1 w-full min-h-11 rounded border border-slate-300 px-3 py-2.5 text-sm leading-normal"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Payment terms</label>
+              <select
+                className="mt-1 w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              >
+                <option value="Due on receipt">Due on receipt</option>
+                <option value="Net 7">Net 7</option>
+                <option value="Net 15">Net 15</option>
+                <option value="Net 30">Net 30</option>
+                <option value="Net 45">Net 45</option>
+                <option value="Net 60">Net 60</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Status</label>
+              <select
+                className="mt-1 w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
+                value={status}
+                onChange={(e) => {
+                  const next = (e.target.value as QuoteStatusBase) || "draft";
+                  setStatus(next);
+                  if (next !== "paid") setPaidAt("");
+                }}
+              >
+                <option value="draft">Draft</option>
+                <option value="sent">Sent</option>
+                <option value="viewed">Viewed</option>
+                <option value="accepted">Accepted</option>
+                <option value="paid">Paid</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Current: {quoteDisplayStatus(status, validUntil)}
+              </p>
+              {paidAt ? (
+                <p className="mt-1 text-xs text-emerald-700">
+                  Paid at: {new Date(paidAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs text-slate-500">Payment link (optional)</label>
+              <input
+                type="url"
+                className="mt-1 w-full min-h-11 rounded border border-slate-300 px-3 py-2.5 text-sm leading-normal"
+                placeholder="https://checkout.example.com/..."
+                value={paymentLink}
+                onChange={(e) => setPaymentLink(e.target.value)}
+              />
+            </div>
             <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
-                <label className="text-xs font-medium text-slate-600">供方名称</label>
+                <label className="text-xs font-medium text-slate-600">Seller</label>
                 <select
                   className="mt-1 w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
                   value={companyId}
@@ -843,7 +973,7 @@ export function QuoteEditor() {
                     setCompanyId(e.target.value);
                   }}
                 >
-                  <option value="">请选择供方</option>
+                  <option value="">Select seller</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.abbr})
@@ -853,30 +983,30 @@ export function QuoteEditor() {
                 {company ? (
                   <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm leading-relaxed text-slate-700">
                     <div>
-                      <span className="text-slate-500">联系人：</span>
+                      <span className="text-slate-500">Contact:</span>
                       {company.contact || "—"}
                     </div>
                     <div>
-                      <span className="text-slate-500">联系电话：</span>
+                      <span className="text-slate-500">Phone:</span>
                       {company.phone || "—"}
                     </div>
                     <div className="break-words">
-                      <span className="text-slate-500">地址：</span>
+                      <span className="text-slate-500">Address:</span>
                       {company.address || "—"}
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-slate-500">请选择供方后显示联系方式与地址</p>
+                  <p className="mt-2 text-xs text-slate-500">Select a seller to show contact details.</p>
                 )}
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
-                <label className="text-xs font-medium text-slate-600">客户名称</label>
+                <label className="text-xs font-medium text-slate-600">Customer</label>
                 <div className="quote-no-print mt-1 flex flex-col gap-2 sm:flex-row sm:items-start">
                   <div className="relative min-w-0 flex-1">
                     <input
                       className="w-full min-h-11 rounded border border-slate-300 bg-white px-3 py-2.5 text-sm leading-normal"
-                      placeholder="输入搜索客户"
+                      placeholder="Search customer"
                       value={customerQuery}
                       onFocus={() => setShowCustDrop(true)}
                       onChange={(e) => {
@@ -911,28 +1041,28 @@ export function QuoteEditor() {
                     className="shrink-0"
                     onClick={() => setQuickCustomerOpen(true)}
                   >
-                    快速新建客户
+                    Quick add
                   </TextButton>
                 </div>
                 {customer ? (
                   <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm leading-relaxed text-slate-800">
                     <div className="text-base font-semibold text-slate-900">{customer.name}</div>
                     <div>
-                      <span className="text-slate-500">联系人：</span>
+                      <span className="text-slate-500">Contact:</span>
                       {customer.contact || "—"}
                     </div>
                     <div>
-                      <span className="text-slate-500">联系电话：</span>
+                      <span className="text-slate-500">Phone:</span>
                       {customer.phone || "—"}
                     </div>
                     <div className="break-words">
-                      <span className="text-slate-500">地址：</span>
+                      <span className="text-slate-500">Address:</span>
                       {customer.address || "—"}
                     </div>
                   </div>
                 ) : (
                   <p className="quote-no-print mt-2 text-xs text-slate-500">
-                    请搜索并选择客户，或快速新建
+                    Search and select a customer, or quick add one.
                   </p>
                 )}
               </div>
@@ -947,31 +1077,31 @@ export function QuoteEditor() {
               className="quote-no-print"
               onClick={() => setPickerOpen(true)}
             >
-              添加商品
+              Add product
             </TextButton>
           </div>
 
-          <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">【报价明细】</h3>
+          <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">Line items</h3>
 
           <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
             <table className="quote-table w-full min-w-[960px] border-collapse text-center text-sm">
               <thead className="bg-slate-100 text-slate-700">
                 <tr>
                   {showLineImages ? (
-                    <th className="border border-slate-200 px-2 py-2.5 font-medium">图</th>
+                    <th className="border border-slate-200 px-2 py-2.5 font-medium">Image</th>
                   ) : null}
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">名称</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">型号</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">规格</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">单位</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">单价</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">数量</th>
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">金额</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Item</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Model</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Spec</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Unit</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Unit price</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Qty</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Amount</th>
                   <th className="min-w-[8rem] border border-slate-200 px-2 py-2.5 font-medium">
-                    备注
+                    Notes
                   </th>
                   <th className="quote-no-print border border-slate-200 px-2 py-2.5 font-medium">
-                    操作
+                    Action
                   </th>
                 </tr>
               </thead>
@@ -1021,13 +1151,13 @@ export function QuoteEditor() {
                       />
                     </td>
                     <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top text-center">
-                      {formatCurrency(l.amount)}
+                      {formatMoney(l.amount, docCurrency)}
                     </td>
                     <td className="border border-slate-200 px-2 py-2 align-top text-center">
                       <textarea
                         rows={2}
                         className="mx-auto box-border w-full min-w-[7rem] resize-y rounded border border-slate-300 px-2 py-2 text-center text-sm leading-relaxed"
-                        placeholder="备注"
+                        placeholder="Notes"
                         value={l.remark ?? ""}
                         onChange={(e) => updateLine(l.id, { remark: e.target.value })}
                       />
@@ -1038,7 +1168,7 @@ export function QuoteEditor() {
                         className="!px-0 text-red-700"
                         onClick={() => removeLine(l.id)}
                       >
-                        删除
+                        Remove
                       </TextButton>
                     </td>
                   </tr>
@@ -1046,7 +1176,7 @@ export function QuoteEditor() {
               </tbody>
             </table>
             {lines.length === 0 ? (
-              <p className="py-4 text-center text-sm text-slate-500">暂无明细，请点击添加商品</p>
+              <p className="py-4 text-center text-sm text-slate-500">No line items yet — add a product.</p>
             ) : null}
           </div>
 
@@ -1065,7 +1195,7 @@ export function QuoteEditor() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <label className="text-xs text-slate-500">
-                        单价
+                        Unit price
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1075,7 +1205,7 @@ export function QuoteEditor() {
                         />
                       </label>
                       <label className="text-xs text-slate-500">
-                        数量
+                        Qty
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1086,7 +1216,7 @@ export function QuoteEditor() {
                       </label>
                     </div>
                     <label className="mt-2 block text-xs text-slate-500">
-                      备注
+                      Notes
                       <textarea
                         rows={2}
                         className="mt-0.5 w-full rounded border border-slate-300 px-2 py-2 text-sm leading-relaxed"
@@ -1094,25 +1224,43 @@ export function QuoteEditor() {
                         onChange={(e) => updateLine(l.id, { remark: e.target.value })}
                       />
                     </label>
-                    <div className="mt-1 font-medium">金额 {formatCurrency(l.amount)}</div>
+                    <div className="mt-1 font-medium">Amount {formatMoney(l.amount, docCurrency)}</div>
                     <TextButton
                       variant="ghost"
                       className="quote-no-print mt-2 !px-0 text-red-700"
                       onClick={() => removeLine(l.id)}
                     >
-                      删除
+                      Remove
                     </TextButton>
                   </div>
                 </div>
               </div>
             ))}
             {lines.length === 0 ? (
-              <p className="py-4 text-center text-sm text-slate-500">暂无明细</p>
+              <p className="py-4 text-center text-sm text-slate-500">No line items</p>
             ) : null}
           </div>
         </div>
 
         <div className="border-t border-slate-200 pt-5">
+          <div className="mb-3 flex flex-wrap items-end gap-3 text-sm">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-xs text-slate-600">Currency (ISO 4217)</span>
+              <input
+                className="min-h-9 w-28 rounded border border-slate-300 px-2 py-2 font-mono uppercase leading-normal"
+                maxLength={3}
+                autoComplete="off"
+                value={currency}
+                onChange={(e) =>
+                  setCurrency(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))
+                }
+                onBlur={() => setCurrency(normalizeDocumentCurrency(currency))}
+              />
+            </label>
+            <span className="max-w-sm text-xs leading-snug text-slate-500">
+              Totals and PDF use this code (default from Settings). Examples: USD, EUR, GBP.
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">
               <input
@@ -1120,11 +1268,13 @@ export function QuoteEditor() {
                 checked={taxIncluded}
                 onChange={(e) => setTaxIncluded(e.target.checked)}
               />
-              含税
+              Tax included
             </label>
             {taxIncluded ? (
-              <label className="flex items-center gap-2">
-                税率（%）
+              <label className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                <span className="text-xs text-slate-600 sm:text-sm">
+                  Tax rate (%) <span className="text-slate-400">(sales tax / VAT)</span>
+                </span>
                 <input
                   type="number"
                   step="0.01"
@@ -1137,9 +1287,9 @@ export function QuoteEditor() {
           </div>
           <div id="quote-export-extra-fees-fields" className="mt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-600">其他费用</span>
+              <span className="text-sm text-slate-600">Additional fees</span>
               <TextButton variant="secondary" className="quote-no-print" onClick={addExtraFee}>
-                添加费用行
+                Add fee line
               </TextButton>
             </div>
             {extraFees.map((f) => (
@@ -1162,32 +1312,32 @@ export function QuoteEditor() {
                   className="quote-no-print !px-0 text-red-700"
                   onClick={() => removeExtraFee(f.id)}
                 >
-                  删除
+                  Remove
                 </TextButton>
               </div>
             ))}
           </div>
           <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm">
             <div className="flex justify-between text-slate-700">
-              <span>商品合计</span>
-              <span>{formatCurrency(subtotal)}</span>
+              <span>Subtotal</span>
+              <span>{formatMoney(subtotal, docCurrency)}</span>
             </div>
             {taxIncluded ? (
               <div className="flex justify-between text-slate-700">
-                <span>税额</span>
-                <span>{formatCurrency(taxAmt)}</span>
+                <span>Tax</span>
+                <span>{formatMoney(taxAmt, docCurrency)}</span>
               </div>
             ) : null}
             <div
               id="quote-export-extra-fees-total-row"
               className="flex justify-between text-slate-700"
             >
-              <span>其他费用合计</span>
-              <span>{formatCurrency(extraFees.reduce((s, f) => s + f.amount, 0))}</span>
+              <span>Additional fees</span>
+              <span>{formatMoney(extraFees.reduce((s, f) => s + f.amount, 0), docCurrency)}</span>
             </div>
             <div className="flex justify-between border-t border-slate-300 pt-3 text-base font-semibold text-slate-900">
-              <span>总价</span>
-              <span>{formatCurrency(grand)}</span>
+              <span>Total</span>
+              <span>{formatMoney(grand, docCurrency)}</span>
             </div>
           </div>
         </div>
@@ -1198,7 +1348,7 @@ export function QuoteEditor() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={company.sealImage}
-                alt="公章"
+                alt="Digital Company Seal"
                 className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
               />
             </div>
@@ -1207,25 +1357,25 @@ export function QuoteEditor() {
 
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">报价条款</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Terms & Conditions</h3>
             <div className="quote-no-print flex flex-wrap gap-2">
               <TextButton
                 variant="secondary"
                 onClick={() => {
                   saveQuoteTermsTemplate(terms);
-                  alert("已保存为默认条款，下次新建报价自动带入。");
+                  alert("Saved as default terms for new quotations.");
                 }}
               >
-                保存为默认条款
+                Save as default
               </TextButton>
               <TextButton variant="secondary" onClick={addTerm}>
-                添加条款
+                Add clause
               </TextButton>
             </div>
           </div>
           {terms.length === 0 ? (
             <p className="quote-no-print text-sm text-slate-500">
-              暂无条款，可点击「添加条款」增加一条或多条说明。
+              No terms yet — use “Add clause”.
             </p>
           ) : (
             <div className="space-y-3 text-sm text-slate-800">
@@ -1238,7 +1388,7 @@ export function QuoteEditor() {
                       className="min-h-[4rem] flex-1 rounded border border-slate-300 px-3 py-2 leading-relaxed"
                       value={t}
                       onChange={(e) => updateTerm(i, e.target.value)}
-                      placeholder={`第 ${i + 1} 条条款内容`}
+                      placeholder={`Clause ${i + 1}`}
                     />
                   </div>
                     <TextButton
@@ -1246,7 +1396,7 @@ export function QuoteEditor() {
                       className="quote-no-print h-fit shrink-0 text-red-700"
                       onClick={() => removeTerm(i)}
                     >
-                      删除
+                      Remove
                     </TextButton>
                   </div>
               ))}
@@ -1256,14 +1406,14 @@ export function QuoteEditor() {
 
         {company && (company.taxId || company.bankName) ? (
           <div className="mt-10 border-t-2 border-slate-300 pt-6 text-sm leading-relaxed text-slate-700">
-            <div className="mb-2 text-xs font-medium text-slate-500">供方账户信息</div>
+            <div className="mb-2 text-xs font-medium text-slate-500">Seller payment details</div>
             {company.taxId ? (
-              <div className="whitespace-pre-wrap break-words">税号：{company.taxId}</div>
+              <div className="whitespace-pre-wrap break-words">Tax ID: {company.taxId}</div>
             ) : null}
             {company.bankName ? (
               <div className="whitespace-pre-wrap break-words">
-                开户行：{company.bankName}
-                {company.bankCode ? `　银行卡号：${company.bankCode}` : ""}
+                Bank: {company.bankName}
+                {company.bankCode ? `  Account: ${company.bankCode}` : ""}
               </div>
             ) : null}
           </div>
@@ -1278,57 +1428,60 @@ export function QuoteEditor() {
             checked={exportInColor}
             onChange={(e) => setExportInColor(e.target.checked)}
           />
-          导出为彩色（生成图片 / PDF；不勾选则为黑白样式；公章始终按上传原色叠印）
+          Export in color (image/PDF)
         </label>
         <div className="flex flex-wrap gap-2">
         <TextButton variant="primary" onClick={saveQuote}>
-          保存报价
+          Save quotation
+        </TextButton>
+        <TextButton variant="secondary" onClick={() => void markPaidNow()}>
+          Mark paid
         </TextButton>
         <TextButton variant="secondary" onClick={() => void openShareModal()}>
-          分享报价
+          Share
         </TextButton>
         <TextButton variant="secondary" onClick={() => void exportImage()}>
-          生成图片
+          Export image
         </TextButton>
         <TextButton variant="secondary" onClick={() => void exportPdf()}>
-          生成PDF
+          Export PDF
         </TextButton>
         <Link href="/quote">
-          <TextButton variant="secondary">查询报价</TextButton>
+          <TextButton variant="secondary">My quotations</TextButton>
         </Link>
         </div>
       </div>
 
       <Modal
         open={shareOpen}
-        title="分享报价"
+        title="Share quotation"
         onClose={closeShareModal}
         panelClassName="max-w-xl"
         footer={
           <>
             <TextButton variant="secondary" onClick={closeShareModal}>
-              关闭
+              Close
             </TextButton>
             <TextButton variant="primary" disabled={!shareUrl} onClick={copyShareUrl}>
-              复制链接
+              Copy link
             </TextButton>
             <TextButton variant="secondary" disabled={!shareQr} onClick={downloadShareQr}>
-              下载二维码
+              Download QR
             </TextButton>
           </>
         }
       >
         {shareLoading ? (
-          <p className="text-center text-sm text-slate-600">正在生成链接与二维码…</p>
+          <p className="text-center text-sm text-slate-600">Generating link and QR…</p>
         ) : null}
         {shareError ? <p className="text-sm text-red-600">{shareError}</p> : null}
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              将下方链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为避免内存占用过大，分享会自动隐藏商品图片，仅分享文字和金额；需要带图请使用「生成图片」或「生成PDF」。
+              Send the link or QR code. It opens a read-only preview. Product images are omitted to keep URLs small; use Export image/PDF for full layout with images.
             </p>
             <div>
-              <label className="block text-xs text-slate-500">分享链接</label>
+              <label className="block text-xs text-slate-500">Share link</label>
               <input
                 readOnly
                 className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-2 py-2 font-mono text-xs text-slate-800"
@@ -1338,9 +1491,9 @@ export function QuoteEditor() {
             </div>
             {shareQr ? (
               <div className="flex flex-col items-center gap-2">
-                <span className="text-xs text-slate-500">扫码打开</span>
+                <span className="text-xs text-slate-500">Scan to open</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={shareQr} alt="报价分享二维码" className="h-56 w-56 rounded border border-slate-200 bg-white p-2" />
+                <img src={shareQr} alt="Quotation share QR" className="h-56 w-56 rounded border border-slate-200 bg-white p-2" />
               </div>
             ) : null}
           </div>
@@ -1349,24 +1502,24 @@ export function QuoteEditor() {
 
       <Modal
         open={pickerOpen}
-        title="选择商品"
+        title="Select product"
         onClose={() => setPickerOpen(false)}
         footer={
           <TextButton variant="secondary" onClick={() => setPickerOpen(false)}>
-            关闭
+            Close
           </TextButton>
         }
       >
         <div className="mb-3">
           <input
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="搜索商品"
+            placeholder="Search products"
             value={productSearch}
             onChange={(e) => setProductSearch(e.target.value)}
           />
         </div>
         <TextButton variant="secondary" className="mb-3" onClick={openQuickProduct}>
-          快速登记新商品
+          Quick add product
         </TextButton>
         <div className="max-h-64 space-y-1 overflow-y-auto">
           {productsFiltered.map((p) => (
@@ -1378,27 +1531,27 @@ export function QuoteEditor() {
             >
               <div className="font-medium">{p.name}</div>
               <div className="text-xs text-slate-500">
-                {p.code} · {formatCurrency(p.price)} / {p.unit}
+                {p.code} · {formatMoney(p.price, docCurrency)} / {p.unit}
               </div>
             </button>
           ))}
         </div>
         {productsFiltered.length === 0 ? (
-          <p className="py-2 text-center text-sm text-slate-500">无匹配商品</p>
+          <p className="py-2 text-center text-sm text-slate-500">No matching products</p>
         ) : null}
       </Modal>
 
       <Modal
         open={quickProductOpen}
-        title="快速登记新商品"
+        title="Quick add product"
         onClose={() => setQuickProductOpen(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setQuickProductOpen(false)}>
-              取消
+              Cancel
             </TextButton>
             <TextButton variant="primary" onClick={saveQuickProduct}>
-              保存并回到列表
+              Save & close
             </TextButton>
           </>
         }
@@ -1406,31 +1559,31 @@ export function QuoteEditor() {
         <div className="space-y-2 text-sm">
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="编码"
+            placeholder="Code"
             value={quickProduct.code}
             onChange={(e) => setQuickProduct((s) => ({ ...s, code: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="名称"
+            placeholder="Name"
             value={quickProduct.name}
             onChange={(e) => setQuickProduct((s) => ({ ...s, name: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="型号"
+            placeholder="Model"
             value={quickProduct.model}
             onChange={(e) => setQuickProduct((s) => ({ ...s, model: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="规格"
+            placeholder="Spec"
             value={quickProduct.spec}
             onChange={(e) => setQuickProduct((s) => ({ ...s, spec: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="单位"
+            placeholder="Unit"
             value={quickProduct.unit}
             onChange={(e) => setQuickProduct((s) => ({ ...s, unit: e.target.value }))}
           />
@@ -1438,7 +1591,7 @@ export function QuoteEditor() {
             type="number"
             step="0.01"
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="单价"
+            placeholder="Unit price"
             value={quickProduct.price || ""}
             onChange={(e) =>
               setQuickProduct((s) => ({ ...s, price: Number.parseFloat(e.target.value) || 0 }))
@@ -1450,15 +1603,15 @@ export function QuoteEditor() {
 
       <Modal
         open={quickCustomerOpen}
-        title="快速新建客户"
+        title="Quick add customer"
         onClose={() => setQuickCustomerOpen(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setQuickCustomerOpen(false)}>
-              取消
+              Cancel
             </TextButton>
             <TextButton variant="primary" onClick={saveQuickCustomer}>
-              保存并选中
+              Save & select
             </TextButton>
           </>
         }
@@ -1466,25 +1619,25 @@ export function QuoteEditor() {
         <div className="space-y-2 text-sm">
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="客户名称"
+            placeholder="Customer name"
             value={quickCustomer.name}
             onChange={(e) => setQuickCustomer((s) => ({ ...s, name: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="联系人"
+            placeholder="Contact"
             value={quickCustomer.contact}
             onChange={(e) => setQuickCustomer((s) => ({ ...s, contact: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="电话"
+            placeholder="Phone"
             value={quickCustomer.phone}
             onChange={(e) => setQuickCustomer((s) => ({ ...s, phone: e.target.value }))}
           />
           <input
             className="w-full rounded border border-slate-300 px-2 py-1.5"
-            placeholder="地址（可选）"
+            placeholder="Address (optional)"
             value={quickCustomer.address}
             onChange={(e) => setQuickCustomer((s) => ({ ...s, address: e.target.value }))}
           />

@@ -7,10 +7,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
-import { formatCurrency } from "@/lib/format";
+import { formatMoney, normalizeDocumentCurrency } from "@/lib/format";
 import { readImageCompressedDataUrl } from "@/lib/imageUpload";
 import { buildProductPriceHistoryMap } from "@/lib/productPriceHistory";
-import { getContracts, getProducts, getQuotes, setProducts } from "@/lib/storage";
+import { getContracts, getProducts, getQuotes, getSettings, setProducts } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
 function newProductCode(existing: Product[]): string {
@@ -70,6 +70,8 @@ function ProductsPageInner() {
     return buildProductPriceHistoryMap(list, quotesSnap, contractsSnap);
   }, [list, quotesSnap, contractsSnap]);
 
+  const docCurrency = normalizeDocumentCurrency(getSettings().documentCurrency);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return list;
@@ -106,7 +108,7 @@ function ProductsPageInner() {
   async function save() {
     const products = getProducts();
     if (!form.code.trim() || !form.name.trim()) {
-      alert("请填写商品编码与名称");
+      alert("Please enter product code and name.");
       return;
     }
     if (editing) {
@@ -138,18 +140,18 @@ function ProductsPageInner() {
     }
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`已保存到本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved locally, but cloud sync failed: ${sync.error}`);
     }
     setModalOpen(false);
     refresh();
   }
 
   async function remove(p: Product) {
-    if (!confirm(`确定删除「${p.name}」？`)) return;
+    if (!confirm(`Delete "${p.name}"?`)) return;
     setProducts(getProducts().filter((x) => x.id !== p.id));
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`已删除本地数据，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Removed locally, but cloud sync failed: ${sync.error}`);
     }
     refresh();
   }
@@ -161,28 +163,28 @@ function ProductsPageInner() {
       const compressed = await readImageCompressedDataUrl(f, { maxSide: 1200, quality: 0.8 });
       setForm((s) => ({ ...s, image: compressed }));
     } catch {
-      alert("图片处理失败，请换一张图片重试");
+      alert("Could not process the image. Try another file.");
     }
   }
 
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6">
       <PageHeader
-        title="商品管理"
+        title="Products"
         actions={
           <TextButton variant="primary" onClick={openCreate}>
-            新增商品
+            Add product
           </TextButton>
         }
       />
 
       <div className="mb-4">
-        <label className="block text-sm text-slate-600">搜索</label>
+        <label className="block text-sm text-slate-600">Search</label>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 sm:max-w-md"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="编码、名称、型号、规格"
+          placeholder="Code, name, model, specs"
         />
       </div>
 
@@ -190,15 +192,15 @@ function ProductsPageInner() {
         <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="px-3 py-2 font-medium">编号</th>
-              <th className="px-3 py-2 font-medium">名称</th>
-              <th className="px-3 py-2 font-medium">型号</th>
-              <th className="px-3 py-2 font-medium">规格</th>
-              <th className="px-3 py-2 font-medium">单位</th>
-              <th className="px-3 py-2 font-medium">单价</th>
-              <th className="px-3 py-2 font-medium whitespace-nowrap">历史报价单价</th>
-              <th className="px-3 py-2 font-medium whitespace-nowrap">历史合同单价</th>
-              <th className="px-3 py-2 font-medium">操作</th>
+              <th className="px-3 py-2 font-medium">Code</th>
+              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Model</th>
+              <th className="px-3 py-2 font-medium">Specs</th>
+              <th className="px-3 py-2 font-medium">Unit</th>
+              <th className="px-3 py-2 font-medium">Unit price</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Quote price range</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Contract price range</th>
+              <th className="px-3 py-2 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -206,11 +208,11 @@ function ProductsPageInner() {
               const h = priceHistoryById.get(p.id);
               const quoteRange =
                 h?.quoteMin != null && h?.quoteMax != null
-                  ? `${formatCurrency(h.quoteMin)}～${formatCurrency(h.quoteMax)}`
+                  ? `${formatMoney(h.quoteMin, docCurrency)} – ${formatMoney(h.quoteMax, docCurrency)}`
                   : "—";
               const contractRange =
                 h?.contractMin != null && h?.contractMax != null
-                  ? `${formatCurrency(h.contractMin)}～${formatCurrency(h.contractMax)}`
+                  ? `${formatMoney(h.contractMin, docCurrency)} – ${formatMoney(h.contractMax, docCurrency)}`
                   : "—";
               return (
               <tr key={p.id} className="border-t border-slate-100">
@@ -219,15 +221,15 @@ function ProductsPageInner() {
                 <td className="px-3 py-2">{p.model}</td>
                 <td className="px-3 py-2">{p.spec}</td>
                 <td className="px-3 py-2">{p.unit}</td>
-                <td className="px-3 py-2">{formatCurrency(p.price)}</td>
+                <td className="px-3 py-2">{formatMoney(p.price, docCurrency)}</td>
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{quoteRange}</td>
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{contractRange}</td>
                 <td className="px-3 py-2 space-x-2">
                   <TextButton variant="ghost" className="!px-0" onClick={() => openEdit(p)}>
-                    修改
+                    Edit
                   </TextButton>
                   <TextButton variant="ghost" className="!px-0 text-red-700" onClick={() => remove(p)}>
-                    删除
+                    Delete
                   </TextButton>
                 </td>
               </tr>
@@ -236,7 +238,7 @@ function ProductsPageInner() {
           </tbody>
         </table>
         {filtered.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-slate-500">暂无商品</p>
+          <p className="px-3 py-6 text-center text-sm text-slate-500">No products yet</p>
         ) : null}
       </div>
 
@@ -245,56 +247,56 @@ function ProductsPageInner() {
           const h = priceHistoryById.get(p.id);
           const quoteRange =
             h?.quoteMin != null && h?.quoteMax != null
-              ? `${formatCurrency(h.quoteMin)}～${formatCurrency(h.quoteMax)}`
+              ? `${formatMoney(h.quoteMin, docCurrency)} – ${formatMoney(h.quoteMax, docCurrency)}`
               : "—";
           const contractRange =
             h?.contractMin != null && h?.contractMax != null
-              ? `${formatCurrency(h.contractMin)}～${formatCurrency(h.contractMax)}`
+              ? `${formatMoney(h.contractMin, docCurrency)} – ${formatMoney(h.contractMax, docCurrency)}`
               : "—";
           return (
           <div key={p.id} className="rounded border border-slate-200 bg-white p-3 text-sm shadow-sm">
             <div className="font-medium text-slate-900">{p.name}</div>
-            <div className="mt-1 text-slate-600">编号 {p.code}</div>
+            <div className="mt-1 text-slate-600">Code {p.code}</div>
             <div className="text-slate-600">
               {p.model} / {p.spec}
             </div>
             <div className="text-slate-600">
-              单位 {p.unit} · 单价 {formatCurrency(p.price)}
+              Unit {p.unit} · Price {formatMoney(p.price, docCurrency)}
             </div>
-            <div className="mt-1 text-slate-600">历史报价单价 {quoteRange}</div>
-            <div className="text-slate-600">历史合同单价 {contractRange}</div>
+            <div className="mt-1 text-slate-600">Quote prices {quoteRange}</div>
+            <div className="text-slate-600">Contract prices {contractRange}</div>
             <div className="mt-2 flex gap-2">
               <TextButton variant="secondary" onClick={() => openEdit(p)}>
-                修改
+                Edit
               </TextButton>
               <TextButton variant="secondary" className="border-red-200 text-red-700" onClick={() => remove(p)}>
-                删除
+                Delete
               </TextButton>
             </div>
           </div>
         );
         })}
-        {filtered.length === 0 ? <p className="text-center text-sm text-slate-500">暂无商品</p> : null}
+        {filtered.length === 0 ? <p className="text-center text-sm text-slate-500">No products yet</p> : null}
       </div>
 
       <Modal
         open={modalOpen}
-        title={editing ? "编辑商品" : "新增商品"}
+        title={editing ? "Edit product" : "New product"}
         onClose={() => setModalOpen(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setModalOpen(false)}>
-              取消
+              Cancel
             </TextButton>
             <TextButton variant="primary" onClick={save}>
-              保存
+              Save
             </TextButton>
           </>
         }
       >
         <div className="space-y-3 text-sm">
           <div>
-            <label className="block text-slate-600">商品编码</label>
+            <label className="block text-slate-600">Product code</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.code}
@@ -302,7 +304,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">商品名称</label>
+            <label className="block text-slate-600">Product name</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.name}
@@ -310,7 +312,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">型号</label>
+            <label className="block text-slate-600">Model</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.model}
@@ -318,7 +320,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">规格</label>
+            <label className="block text-slate-600">Specs</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.spec}
@@ -326,7 +328,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">单位</label>
+            <label className="block text-slate-600">Unit</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.unit}
@@ -334,7 +336,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">单价</label>
+            <label className="block text-slate-600">Unit price</label>
             <input
               type="number"
               step="0.01"
@@ -346,7 +348,7 @@ function ProductsPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">图片上传</label>
+            <label className="block text-slate-600">Image upload</label>
             <input type="file" accept="image/*" className="mt-1 w-full text-sm" onChange={onImageFile} />
             {form.image ? (
               // eslint-disable-next-line @next/next/no-img-element

@@ -14,22 +14,22 @@ function randomOutTradeNo(): string {
 
 export async function POST(request: Request) {
   const prisma = getPrisma();
-  if (!prisma) return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+  if (!prisma) return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
 
   const rawCookie = cookies().get(COOKIE_NAME)?.value;
   const session = rawCookie ? await verifySessionToken(rawCookie) : null;
-  if (!session) return NextResponse.json({ ok: false, error: "请先登录" }, { status: 401 });
+  if (!session) return NextResponse.json({ ok: false, error: "Please sign in first." }, { status: 401 });
 
   let body: { sku?: string };
   try {
     body = (await request.json()) as { sku?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const sku = String(body.sku ?? "").trim();
   const info = getSkuInfo(sku);
-  if (!info) return NextResponse.json({ ok: false, error: "SKU 无效" }, { status: 400 });
+  if (!info) return NextResponse.json({ ok: false, error: "Invalid SKU." }, { status: 400 });
 
   const wx = getWechatPayClient();
   if (!wx.ok) return NextResponse.json({ ok: false, error: wx.error }, { status: 503 });
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         where: { outTradeNo },
         data: { status: "failed" },
       });
-      return NextResponse.json({ ok: false, error: "微信下单失败：未返回 code_url" }, { status: 502 });
+      return NextResponse.json({ ok: false, error: "WeChat Pay did not return a payment QR URL." }, { status: 502 });
     }
 
     await prisma.paymentOrder.update({
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       data: { status: "failed" },
     });
     return NextResponse.json(
-      { ok: false, error: `微信下单失败：${e instanceof Error ? e.message : "unknown"}` },
+      { ok: false, error: `WeChat Pay order failed: ${e instanceof Error ? e.message : "unknown"}` },
       { status: 502 }
     );
   }

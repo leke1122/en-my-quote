@@ -1,3 +1,4 @@
+import { normalizeDocumentCurrency } from "./format";
 import type {
   AppSettings,
   Company,
@@ -20,7 +21,7 @@ const KEYS = {
   contractCounters: "contractCounters",
 } as const;
 
-/** 与 localStorage 键一致，供备份/恢复使用 */
+/** Keys mirror localStorage for backup/restore */
 export const STORAGE_KEYS = KEYS;
 
 export function loadJson<T>(key: string, fallback: T): T {
@@ -39,7 +40,9 @@ export function saveJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    window.alert("保存失败：本地存储空间不足。请先到“设置”导出备份，删除部分大图片后重试。");
+    window.alert(
+      "Save failed: browser storage is full. Export a backup in Settings, remove large images, and try again."
+    );
   }
 }
 
@@ -75,6 +78,62 @@ export function setQuotes(list: Quote[]): void {
   saveJson(KEYS.quotes, list);
 }
 
+export function markQuoteStatusById(
+  quoteId: string,
+  status: Quote["status"],
+  patch?: Partial<Pick<Quote, "paidAt">>
+): void {
+  const all = getQuotes();
+  const next = all.map((q) =>
+    q.id === quoteId
+      ? {
+          ...q,
+          status,
+          paidAt: patch?.paidAt !== undefined ? patch.paidAt : q.paidAt,
+          updatedAt: new Date().toISOString(),
+        }
+      : q
+  );
+  setQuotes(next);
+}
+
+export function markQuoteViewedByQuoteNo(quoteNo: string): void {
+  const all = getQuotes();
+  let changed = false;
+  const nowIso = new Date().toISOString();
+  const next = all.map((q) => {
+    if (q.quoteNo !== quoteNo) return q;
+    if (q.status === "accepted" || q.status === "paid") return q;
+    changed = true;
+    return {
+      ...q,
+      status: "viewed" as const,
+      viewCount: (q.viewCount ?? 0) + 1,
+      lastViewedAt: nowIso,
+      updatedAt: nowIso,
+    };
+  });
+  if (changed) setQuotes(next);
+}
+
+export function markQuoteReminderSent(quoteId: string, to: string): void {
+  const all = getQuotes();
+  const nowIso = new Date().toISOString();
+  const email = to.trim().toLowerCase();
+  const next = all.map((q) =>
+    q.id === quoteId
+      ? {
+          ...q,
+          reminderCount: (q.reminderCount ?? 0) + 1,
+          lastReminderAt: nowIso,
+          lastReminderTo: email,
+          updatedAt: nowIso,
+        }
+      : q
+  );
+  setQuotes(next);
+}
+
 export function getQuoteCounters(): QuoteCounters {
   return loadJson<QuoteCounters>(KEYS.quoteCounter, {});
 }
@@ -84,30 +143,27 @@ export function setQuoteCounters(c: QuoteCounters): void {
 }
 
 const defaultSettings: AppSettings = {
-  wpsAppId: "",
-  wpsAppSecret: "",
-  wpsToken: "",
-  wpsDbsheetFileId: "",
-  wpsDbsheetSheetId: "",
-  wpsFieldQuoteNo: "",
-  wpsFieldDate: "",
-  wpsFieldCustomer: "",
-  wpsFieldProductName: "",
-  wpsFieldModel: "",
-  wpsFieldSpec: "",
-  wpsFieldUnit: "",
-  wpsFieldQty: "",
-  wpsFieldPrice: "",
-  wpsFieldAmount: "",
-  feishuKbUrl: "https://www.feishu.cn/",
+  documentCurrency: "USD",
 };
 
+/** Used when reading localStorage, API payloads, and backups (ignores legacy keys). */
+export function coerceAppSettings(raw: unknown): AppSettings {
+  if (!raw || typeof raw !== "object") {
+    return { ...defaultSettings };
+  }
+  const o = raw as Record<string, unknown>;
+  const cur =
+    typeof o.documentCurrency === "string" ? o.documentCurrency : defaultSettings.documentCurrency;
+  return { documentCurrency: normalizeDocumentCurrency(cur) };
+}
+
 export function getSettings(): AppSettings {
-  return { ...defaultSettings, ...loadJson<Partial<AppSettings>>(KEYS.settings, {}) };
+  const loaded = loadJson<unknown>(KEYS.settings, {});
+  return coerceAppSettings(loaded);
 }
 
 export function setSettings(s: AppSettings): void {
-  saveJson(KEYS.settings, s);
+  saveJson(KEYS.settings, coerceAppSettings(s));
 }
 
 export function getContracts(): Contract[] {

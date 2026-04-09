@@ -29,12 +29,12 @@ export function getWechatPayClient(): {
   const notifyUrl = envText("WXPAY_NOTIFY_URL");
   const apiV3Key = envText("WXPAY_API_V3_KEY");
 
-  if (!appid) return { ok: false, error: "缺少环境变量 WXPAY_APPID" };
-  if (!mchid) return { ok: false, error: "缺少环境变量 WXPAY_MCHID" };
-  if (!publicKey) return { ok: false, error: "缺少环境变量 WXPAY_PUBLIC_KEY_PEM" };
-  if (!privateKey) return { ok: false, error: "缺少环境变量 WXPAY_PRIVATE_KEY_PEM" };
-  if (!notifyUrl) return { ok: false, error: "缺少环境变量 WXPAY_NOTIFY_URL" };
-  if (!apiV3Key) return { ok: false, error: "缺少环境变量 WXPAY_API_V3_KEY" };
+  if (!appid) return { ok: false, error: "Missing env WXPAY_APPID" };
+  if (!mchid) return { ok: false, error: "Missing env WXPAY_MCHID" };
+  if (!publicKey) return { ok: false, error: "Missing env WXPAY_PUBLIC_KEY_PEM" };
+  if (!privateKey) return { ok: false, error: "Missing env WXPAY_PRIVATE_KEY_PEM" };
+  if (!notifyUrl) return { ok: false, error: "Missing env WXPAY_NOTIFY_URL" };
+  if (!apiV3Key) return { ok: false, error: "Missing env WXPAY_API_V3_KEY" };
 
   const pay = new WxPay({
     appid,

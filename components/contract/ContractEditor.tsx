@@ -11,7 +11,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 import { pushProjectDataToCloud } from "@/lib/cloudProjectData";
-import { amountToChineseUppercase } from "@/lib/chineseAmount";
 import { CONTRACT_INTRO } from "@/lib/contractDefaults";
 import {
   contractExtraFeesTotal,
@@ -25,8 +24,9 @@ import { contractHtml2canvasOnClone } from "@/lib/contractPrintHtml2Canvas";
 import type { ContractSharePayload } from "@/lib/contractSharePayload";
 import { commitNextContractNo, peekNextContractNo } from "@/lib/contractNumber";
 import { encodeSharePayload } from "@/lib/share";
-import { formatCurrency } from "@/lib/format";
+import { formatMoney, normalizeDocumentCurrency } from "@/lib/format";
 import { partyFromCompany, partyFromCustomer } from "@/lib/partyFromMasters";
+import { quoteDisplayStatus } from "@/lib/quoteStatus";
 import { quoteLinesToContractLines } from "@/lib/quoteToContract";
 import { dateToYmdCompact } from "@/lib/quoteNumber";
 import {
@@ -35,6 +35,8 @@ import {
   getCustomers,
   getProducts,
   getQuotes,
+  getSettings,
+  markQuoteStatusById,
   setContracts,
   setProducts,
 } from "@/lib/storage";
@@ -162,7 +164,8 @@ export function ContractEditor() {
   const [seller, setSeller] = useState<ContractPartySnapshot>(emptyParty);
   const [sourceQuoteId, setSourceQuoteId] = useState<string | undefined>();
   const [taxIncluded, setTaxIncluded] = useState(false);
-  const [taxRate, setTaxRate] = useState(13);
+  const [taxRate, setTaxRate] = useState(0);
+  const [currency, setCurrency] = useState("USD");
   const [extraFees, setExtraFees] = useState<QuoteExtraFee[]>([]);
   const [extraFeeAmountDraft, setExtraFeeAmountDraft] = useState<ExtraFeeAmountDraft>({});
 
@@ -196,6 +199,12 @@ export function ContractEditor() {
 
   const company = useMemo(() => companies.find((c) => c.id === companyId), [companies, companyId]);
   const customer = useMemo(() => customers.find((c) => c.id === customerId), [customers, customerId]);
+  const sourceQuote = useMemo(
+    () => (sourceQuoteId ? getQuotes().find((q) => q.id === sourceQuoteId) : undefined),
+    [sourceQuoteId]
+  );
+
+  const docCurrency = useMemo(() => normalizeDocumentCurrency(currency), [currency]);
 
   const ymdCompact = dateToYmdCompact(signingDate);
   const subtotal = useMemo(() => contractLinesSubtotal(lines), [lines]);
@@ -208,8 +217,6 @@ export function ContractEditor() {
     () => contractGrandTotalFromState(lines, taxIncluded, taxRate, extraFees),
     [lines, taxIncluded, taxRate, extraFees]
   );
-  const amountCn = useMemo(() => amountToChineseUppercase(grandTotal), [grandTotal]);
-
   const custFiltered = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
     if (!q) return customers.slice(0, 50);
@@ -249,7 +256,8 @@ export function ContractEditor() {
     setSeller(comp ? partyFromCompany(comp) : emptyParty);
     setSourceQuoteId(q.id);
     setTaxIncluded(!!q.taxIncluded);
-    setTaxRate(typeof q.taxRate === "number" ? q.taxRate : 13);
+    setTaxRate(typeof q.taxRate === "number" ? q.taxRate : Number(q.taxRate) || 0);
+    setCurrency(q.currency ?? getSettings().documentCurrency);
     setExtraFees(Array.isArray(q.extraFees) ? q.extraFees.map((f) => ({ ...f })) : []);
     setExtraFeeAmountDraft({});
     setLineTextDraft({});
@@ -300,7 +308,8 @@ export function ContractEditor() {
           setBuyer(c.buyer);
           setSeller(c.seller);
           setTaxIncluded(!!c.taxIncluded);
-          setTaxRate(typeof c.taxRate === "number" ? c.taxRate : 13);
+          setTaxRate(typeof c.taxRate === "number" ? c.taxRate : Number(c.taxRate) || 0);
+          setCurrency(c.currency ?? getSettings().documentCurrency);
           setExtraFees(Array.isArray(c.extraFees) ? c.extraFees.map((f) => ({ ...f })) : []);
           setExtraFeeAmountDraft({});
           setSourceQuoteId(c.sourceQuoteId);
@@ -341,7 +350,8 @@ export function ContractEditor() {
       setBuyer(emptyParty);
       setSeller(def ? partyFromCompany(def) : emptyParty);
       setTaxIncluded(false);
-      setTaxRate(13);
+      setTaxRate(0);
+      setCurrency(getSettings().documentCurrency);
       setExtraFees([]);
       setExtraFeeAmountDraft({});
       setSourceQuoteId(undefined);
@@ -442,7 +452,7 @@ export function ContractEditor() {
   }
 
   function addExtraFee() {
-    setExtraFees((prev) => [...prev, { id: newLineId(), name: "其他费用", amount: 0 }]);
+    setExtraFees((prev) => [...prev, { id: newLineId(), name: "Additional fee", amount: 0 }]);
   }
 
   function updateExtraFee(id: string, patch: Partial<QuoteExtraFee>) {
@@ -467,15 +477,15 @@ export function ContractEditor() {
 
   async function saveContract() {
     if (!companyId) {
-      alert("请选择供方（我司）");
+      alert("Please select a seller (your company).");
       return;
     }
     if (!customerId) {
-      alert("请选择需方客户");
+      alert("Please select a buyer (customer).");
       return;
     }
     if (lines.length === 0) {
-      alert("请至少添加一条标的明细");
+      alert("Please add at least one line item.");
       return;
     }
     const now = new Date().toISOString();
@@ -506,10 +516,14 @@ export function ContractEditor() {
         taxRate,
         extraFees: extraFees.map((f) => ({ ...f })),
         sourceQuoteId,
+        currency: docCurrency,
         createdAt: now,
         updatedAt: now,
       };
       setContracts([...all, created]);
+      if (sourceQuoteId) {
+        markQuoteStatusById(sourceQuoteId, "accepted");
+      }
       setContractId(id);
       setContractNo(finalNo);
       setIsDraft(false);
@@ -531,21 +545,25 @@ export function ContractEditor() {
               taxRate,
               extraFees: extraFees.map((f) => ({ ...f })),
               sourceQuoteId,
+              currency: docCurrency,
               updatedAt: now,
             }
           : c
       );
       setContracts(next);
+      if (sourceQuoteId) {
+        markQuoteStatusById(sourceQuoteId, "accepted");
+      }
     }
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
       if (!sync.ok) {
-        setSaveHint(`合同已保存本地，但云端同步失败：${sync.error}`);
+        setSaveHint(`Saved locally, but cloud sync failed: ${sync.error}`);
         return;
       }
     }
     refreshStores();
-    setSaveHint(`合同已保存（本地浏览器） ${new Date().toLocaleTimeString()}`);
+    setSaveHint(`Saved locally at ${new Date().toLocaleTimeString()}`);
   }
 
   async function exportImage() {
@@ -619,7 +637,7 @@ export function ContractEditor() {
 
   async function openShareModal() {
     if (!companyId) {
-      alert("请先选择供方");
+      alert("Please select a seller (your company) first.");
       return;
     }
     setShareOpen(true);
@@ -644,13 +662,14 @@ export function ContractEditor() {
         extraFees: extraFees.map((f) => ({ ...f })),
         sourceQuoteId,
         sellerSealImage: company?.sealImage,
+        currency: docCurrency,
       };
       const enc = await encodeSharePayload(payload);
       const url = `${window.location.origin}/contract/preview?share=${encodeURIComponent(enc)}`;
       setShareUrl(url);
       setShareQr(await QRCode.toDataURL(url, { margin: 1, width: 320 }));
     } catch (e) {
-      setShareError(e instanceof Error ? e.message : "生成失败");
+      setShareError(e instanceof Error ? e.message : "Failed to generate share link");
     } finally {
       setShareLoading(false);
     }
@@ -663,7 +682,7 @@ export function ContractEditor() {
   async function copyShareUrl() {
     if (!shareUrl) return;
     await navigator.clipboard.writeText(shareUrl);
-    alert("已复制链接");
+    alert("Link copied");
   }
 
   function downloadShareQr() {
@@ -676,7 +695,7 @@ export function ContractEditor() {
 
   async function saveQuickProduct() {
     if (!quickProduct.name.trim()) {
-      alert("请填写商品名称");
+      alert("Please enter a product name.");
       return;
     }
     const rows = getProducts();
@@ -696,7 +715,7 @@ export function ContractEditor() {
     setQuickProduct(emptyQuickProduct);
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`商品已保存本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved locally, but cloud sync failed: ${sync.error}`);
     }
   }
 
@@ -707,7 +726,7 @@ export function ContractEditor() {
     className = ""
   ) => (
     <div className={`flex flex-wrap items-center gap-x-1 text-sm leading-normal text-slate-900 ${className}`}>
-      <span className="shrink-0">{label}：</span>
+      <span className="shrink-0">{label}:</span>
       <input
         className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm leading-normal"
         value={value}
@@ -719,14 +738,14 @@ export function ContractEditor() {
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-6">
       <PageHeader
-        title="新建合同"
+        title="New contract"
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/contract">
-              <TextButton variant="secondary">查询合同</TextButton>
+              <TextButton variant="secondary">My contracts</TextButton>
             </Link>
             <Link href="/">
-              <TextButton variant="secondary">首页</TextButton>
+              <TextButton variant="secondary">Home</TextButton>
             </Link>
           </div>
         }
@@ -735,38 +754,67 @@ export function ContractEditor() {
       <div className="quote-no-print mb-3 flex flex-wrap items-center gap-2">
         {allowQuoteBridge ? (
           <TextButton variant="secondary" onClick={() => setPickQuoteOpen(true)}>
-            从报价生成…
+            Create from quote…
           </TextButton>
         ) : (
           <p className="text-xs text-amber-800">
-            「从报价生成合同」需「报价+合同版」套餐，请至淘宝升级后在设置中兑换激活码。
+            “Create from quote” requires a plan that includes both Quotes and Contracts.
           </p>
         )}
         <TextButton variant="secondary" onClick={syncPartiesFromMasters}>
-          从客户/我司同步签章信息
+          Sync party details from Customer / Company
         </TextButton>
       </div>
+      {sourceQuote ? (
+        <section className="quote-no-print mb-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-sm text-slate-700">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-slate-900">Source quote: {sourceQuote.quoteNo}</span>
+            <span className="rounded bg-white px-2 py-0.5 text-xs uppercase">
+              {quoteDisplayStatus(sourceQuote.status, sourceQuote.validUntil)}
+            </span>
+            <span>valid until {sourceQuote.validUntil || "—"}</span>
+            <span>payment terms {sourceQuote.paymentTerms || "—"}</span>
+            <TextButton
+              variant="ghost"
+              className="!px-0"
+              onClick={() => router.push(`/quote/new?id=${encodeURIComponent(sourceQuote.id)}`)}
+            >
+              Open quote
+            </TextButton>
+            {sourceQuote.paymentLink ? (
+              <a
+                href={sourceQuote.paymentLink}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-700 underline"
+              >
+                Open payment link
+              </a>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <div
         id="contract-print"
         className="quote-document mx-auto max-w-[210mm] rounded-lg border border-slate-300 bg-white p-6 shadow-sm sm:p-8"
       >
-        <h2 className="mb-6 text-center text-2xl font-bold tracking-widest text-slate-900">销售合同</h2>
+        <h2 className="mb-6 text-center text-2xl font-bold tracking-widest text-slate-900">Contract</h2>
 
         <div className="contract-print-header-grid mb-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-baseline gap-2">
-              <span className="shrink-0 font-medium text-slate-700">需方：</span>
+              <span className="shrink-0 font-medium text-slate-700">Buyer:</span>
               <span className="text-slate-900">{customer?.name || buyer.name || "—"}</span>
             </div>
             <div className="flex flex-wrap items-baseline gap-2">
-              <span className="shrink-0 font-medium text-slate-700">供方：</span>
+              <span className="shrink-0 font-medium text-slate-700">Seller:</span>
               <span className="text-slate-900">{company?.name || seller.name || "—"}</span>
             </div>
           </div>
           <div className="contract-print-header-right space-y-2 text-sm sm:text-right">
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <span className="text-slate-600">合同编号</span>
+              <span className="text-slate-600">Contract No.</span>
               <input
                 className="min-w-[10rem] rounded border border-slate-300 px-2 py-1 text-sm"
                 value={contractNo}
@@ -777,7 +825,7 @@ export function ContractEditor() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <span className="text-slate-600">签订时间</span>
+              <span className="text-slate-600">Date</span>
               <input
                 type="date"
                 className="rounded border border-slate-300 px-2 py-1 text-sm"
@@ -790,12 +838,12 @@ export function ContractEditor() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <span className="text-slate-600">签订地点</span>
+              <span className="text-slate-600">Place</span>
               <input
                 className="min-w-[10rem] rounded border border-slate-300 px-2 py-1 text-sm"
                 value={signingPlace}
                 onChange={(e) => setSigningPlace(e.target.value)}
-                placeholder="可选填"
+                placeholder="Optional"
               />
             </div>
           </div>
@@ -803,23 +851,21 @@ export function ContractEditor() {
 
         <p className="contract-print-intro mb-6 text-sm leading-loose text-slate-800 indent-8">{CONTRACT_INTRO}</p>
 
-        <p className="mb-2 text-sm font-semibold text-slate-900">
-          一、合同标的（产品名称、型号（规格）、单位、数量、单价、金额）
-        </p>
+        <p className="mb-2 text-sm font-semibold text-slate-900">1. Line items</p>
 
         <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
           <table className="w-full min-w-[880px] border-collapse border border-slate-800 text-center text-sm">
             <thead>
               <tr className="bg-slate-100">
-                <th className="border border-slate-800 px-1 py-2 font-medium">产品编号 NO</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">产品名称</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">型号/规格</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">单位</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">数量</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">单价</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">金额</th>
-                <th className="border border-slate-800 px-1 py-2 font-medium">备注</th>
-                <th className="quote-no-print border border-slate-800 px-1 py-2 font-medium">操作</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Item code</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Item</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Model / Spec</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Unit</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Qty</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Unit price</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Amount</th>
+                <th className="border border-slate-800 px-1 py-2 font-medium">Notes</th>
+                <th className="quote-no-print border border-slate-800 px-1 py-2 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -872,7 +918,7 @@ export function ContractEditor() {
                     />
                   </td>
                   <td className="whitespace-nowrap border border-slate-800 px-1 py-1 align-top text-center">
-                    {formatCurrency(l.amount)}
+                    {formatMoney(l.amount, docCurrency)}
                   </td>
                   <td className="border border-slate-800 px-1 py-1 align-top">
                     <input
@@ -883,7 +929,7 @@ export function ContractEditor() {
                   </td>
                   <td className="quote-no-print border border-slate-800 px-1 py-1 align-top text-center">
                     <TextButton variant="ghost" className="!px-0 text-red-700" onClick={() => removeLine(l.id)}>
-                      删除
+                      Remove
                     </TextButton>
                   </td>
                 </tr>
@@ -901,7 +947,7 @@ export function ContractEditor() {
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="text-xs">
-                  数量
+                  Qty
                   <input
                     type="text"
                     inputMode="decimal"
@@ -911,7 +957,7 @@ export function ContractEditor() {
                   />
                 </label>
                 <label className="text-xs">
-                  单价
+                  Unit price
                   <input
                     type="text"
                     inputMode="decimal"
@@ -921,9 +967,9 @@ export function ContractEditor() {
                   />
                 </label>
               </div>
-              <div className="mt-1 font-medium">金额 {formatCurrency(l.amount)}</div>
+              <div className="mt-1 font-medium">Amount {formatMoney(l.amount, docCurrency)}</div>
               <TextButton variant="ghost" className="quote-no-print mt-2 !px-0 text-red-700" onClick={() => removeLine(l.id)}>
-                删除
+                Remove
               </TextButton>
             </div>
           ))}
@@ -932,7 +978,7 @@ export function ContractEditor() {
         <div className="quote-no-print mt-3 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:mt-2">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="text-xs font-medium text-slate-600">供方（我司）</label>
+              <label className="text-xs font-medium text-slate-600">Seller (your company)</label>
               <select
                 className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={companyId}
@@ -944,7 +990,7 @@ export function ContractEditor() {
                   if (c) setSeller(partyFromCompany(c));
                 }}
               >
-                <option value="">请选择</option>
+                <option value="">Select</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.abbr})
@@ -953,10 +999,10 @@ export function ContractEditor() {
               </select>
             </div>
             <div className="relative">
-              <label className="text-xs font-medium text-slate-600">需方（客户）</label>
+              <label className="text-xs font-medium text-slate-600">Buyer (customer)</label>
               <input
                 className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="搜索客户"
+                placeholder="Search customer"
                 value={customerQuery}
                 onFocus={() => setShowCustDrop(true)}
                 onChange={(e) => {
@@ -987,12 +1033,30 @@ export function ContractEditor() {
           </div>
           <div className="flex flex-wrap gap-2">
             <TextButton variant="primary" onClick={() => setPickerOpen(true)}>
-              添加商品行
+              Add line item
             </TextButton>
           </div>
         </div>
 
         <div className="mt-4 border-t border-slate-800 pt-4 text-sm">
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-xs font-medium text-slate-600">Currency (ISO 4217)</span>
+              <input
+                className="min-h-9 w-28 rounded border border-slate-800 px-2 py-1.5 font-mono uppercase leading-normal"
+                maxLength={3}
+                autoComplete="off"
+                value={currency}
+                onChange={(e) =>
+                  setCurrency(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))
+                }
+                onBlur={() => setCurrency(normalizeDocumentCurrency(currency))}
+              />
+            </label>
+            <span className="max-w-sm text-xs leading-snug text-slate-600">
+              Totals and PDF use this code (default from Settings).
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-slate-800">
               <input
@@ -1000,11 +1064,13 @@ export function ContractEditor() {
                 checked={taxIncluded}
                 onChange={(e) => setTaxIncluded(e.target.checked)}
               />
-              含税
+              Tax included
             </label>
             {taxIncluded ? (
-              <label className="flex items-center gap-2 text-slate-800">
-                税率（%）
+              <label className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2 text-slate-800">
+                <span className="text-xs sm:text-sm">
+                  Tax rate (%) <span className="text-slate-500">(sales tax / VAT)</span>
+                </span>
                 <input
                   type="number"
                   step="0.01"
@@ -1017,9 +1083,9 @@ export function ContractEditor() {
           </div>
           <div className="mt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-800">其他费用</span>
+              <span className="text-slate-800">Additional fees</span>
               <TextButton variant="secondary" className="quote-no-print" onClick={addExtraFee}>
-                添加费用行
+                Add fee line
               </TextButton>
             </div>
             {extraFees.map((f) => (
@@ -1042,57 +1108,53 @@ export function ContractEditor() {
                   className="quote-no-print !px-0 text-red-700"
                   onClick={() => removeExtraFee(f.id)}
                 >
-                  删除
+                  Remove
                 </TextButton>
               </div>
             ))}
           </div>
           <div className="mt-4 space-y-2 border-t border-slate-800 pt-3">
             <div className="flex flex-wrap justify-between gap-2 text-slate-800">
-              <span>商品金额合计</span>
-              <span>{formatCurrency(subtotal)}</span>
+              <span>Subtotal</span>
+              <span>{formatMoney(subtotal, docCurrency)}</span>
             </div>
             {taxIncluded ? (
               <div className="flex flex-wrap justify-between gap-2 text-slate-800">
-                <span>税额（税率 {taxRate}%）</span>
-                <span>{formatCurrency(taxAmt)}</span>
+                <span>Tax ({taxRate}%)</span>
+                <span>{formatMoney(taxAmt, docCurrency)}</span>
               </div>
             ) : null}
             <div className="flex flex-wrap justify-between gap-2 text-slate-800">
-              <span>其他费用合计</span>
-              <span>{formatCurrency(extraFeesSum)}</span>
-            </div>
-            <div className="flex flex-wrap justify-between gap-2 border-t border-slate-800 pt-2 font-medium text-slate-900">
-              <span>合同总金额（大写）</span>
-              <span>{amountCn}</span>
+              <span>Additional fees</span>
+              <span>{formatMoney(extraFeesSum, docCurrency)}</span>
             </div>
             <div className="flex flex-wrap justify-between gap-2 font-semibold text-slate-900">
-              <span>合同总金额（小写）</span>
-              <span>{formatCurrency(grandTotal)}</span>
+              <span>Total</span>
+              <span>{formatMoney(grandTotal, docCurrency)}</span>
             </div>
           </div>
         </div>
 
         <div id="contract-clauses-section" className="mt-8 border-t border-slate-200 pt-5">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">合同条款</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Terms & Conditions</h3>
             <div className="quote-no-print flex flex-wrap gap-2">
               <TextButton
                 variant="secondary"
                 onClick={() => {
                   saveContractClausesTemplate(clauses);
-                  alert("已保存为默认条款，下次新建合同自动带入。");
+                  alert("Saved as default clauses for new contracts.");
                 }}
               >
-                保存为默认条款
+                Save as default
               </TextButton>
               <TextButton variant="secondary" onClick={addClause}>
-                添加条款
+                Add clause
               </TextButton>
             </div>
           </div>
           {clauses.length === 0 ? (
-            <p className="quote-no-print text-sm text-slate-500">暂无条款</p>
+            <p className="quote-no-print text-sm text-slate-500">No clauses yet</p>
           ) : (
             <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-slate-800">
               {clauses.map((t, i) => (
@@ -1105,7 +1167,7 @@ export function ContractEditor() {
                       onChange={(e) => updateClause(i, e.target.value)}
                     />
                     <TextButton variant="ghost" className="quote-no-print h-fit shrink-0 text-red-700" onClick={() => removeClause(i)}>
-                      删除
+                      Remove
                     </TextButton>
                   </div>
                 </li>
@@ -1115,37 +1177,37 @@ export function ContractEditor() {
         </div>
 
         <div className="mt-10 border-t-2 border-slate-800 pt-6">
-          <p className="mb-4 text-center text-sm font-semibold text-slate-900">以下为双方详细信息（签章页）</p>
+          <p className="mb-4 text-center text-sm font-semibold text-slate-900">Party details</p>
           <div className="contract-print-parties-grid grid gap-6 sm:grid-cols-2">
             <div className="rounded border border-slate-300 p-4">
-              <p className="mb-3 text-sm font-bold text-slate-900">甲方（需方）</p>
+              <p className="mb-3 text-sm font-bold text-slate-900">Buyer</p>
               <div className="grid gap-2">
-                {partyField("名称", buyer.name, (v) => setBuyer((b) => ({ ...b, name: v })))}
-                {partyField("地址", buyer.address, (v) => setBuyer((b) => ({ ...b, address: v })))}
-                {partyField("代理人", buyer.agent, (v) => setBuyer((b) => ({ ...b, agent: v })))}
-                {partyField("电话", buyer.phone, (v) => setBuyer((b) => ({ ...b, phone: v })))}
-                {partyField("开户行", buyer.bankName, (v) => setBuyer((b) => ({ ...b, bankName: v })))}
-                {partyField("账号", buyer.bankAccount, (v) => setBuyer((b) => ({ ...b, bankAccount: v })))}
-                {partyField("税号", buyer.taxId, (v) => setBuyer((b) => ({ ...b, taxId: v })))}
+                {partyField("Name", buyer.name, (v) => setBuyer((b) => ({ ...b, name: v })))}
+                {partyField("Address", buyer.address, (v) => setBuyer((b) => ({ ...b, address: v })))}
+                {partyField("Agent", buyer.agent, (v) => setBuyer((b) => ({ ...b, agent: v })))}
+                {partyField("Phone", buyer.phone, (v) => setBuyer((b) => ({ ...b, phone: v })))}
+                {partyField("Bank", buyer.bankName, (v) => setBuyer((b) => ({ ...b, bankName: v })))}
+                {partyField("Account", buyer.bankAccount, (v) => setBuyer((b) => ({ ...b, bankAccount: v })))}
+                {partyField("Tax ID", buyer.taxId, (v) => setBuyer((b) => ({ ...b, taxId: v })))}
               </div>
             </div>
             <div className="relative rounded border border-slate-300 p-4 pb-20 sm:pb-[4.5rem]">
-              <p className="mb-3 text-sm font-bold text-slate-900">乙方（供方）</p>
+              <p className="mb-3 text-sm font-bold text-slate-900">Seller</p>
               <div className="grid gap-2">
-                {partyField("名称", seller.name, (v) => setSeller((s) => ({ ...s, name: v })))}
-                {partyField("地址", seller.address, (v) => setSeller((s) => ({ ...s, address: v })))}
-                {partyField("代理人", seller.agent, (v) => setSeller((s) => ({ ...s, agent: v })))}
-                {partyField("电话", seller.phone, (v) => setSeller((s) => ({ ...s, phone: v })))}
-                {partyField("开户行", seller.bankName, (v) => setSeller((s) => ({ ...s, bankName: v })))}
-                {partyField("账号", seller.bankAccount, (v) => setSeller((s) => ({ ...s, bankAccount: v })))}
-                {partyField("税号", seller.taxId, (v) => setSeller((s) => ({ ...s, taxId: v })))}
+                {partyField("Name", seller.name, (v) => setSeller((s) => ({ ...s, name: v })))}
+                {partyField("Address", seller.address, (v) => setSeller((s) => ({ ...s, address: v })))}
+                {partyField("Agent", seller.agent, (v) => setSeller((s) => ({ ...s, agent: v })))}
+                {partyField("Phone", seller.phone, (v) => setSeller((s) => ({ ...s, phone: v })))}
+                {partyField("Bank", seller.bankName, (v) => setSeller((s) => ({ ...s, bankName: v })))}
+                {partyField("Account", seller.bankAccount, (v) => setSeller((s) => ({ ...s, bankAccount: v })))}
+                {partyField("Tax ID", seller.taxId, (v) => setSeller((s) => ({ ...s, taxId: v })))}
               </div>
               {company?.sealImage ? (
                 <div className="contract-print-seal-wrap pointer-events-none absolute bottom-3 right-3 flex max-w-[58%] items-end justify-end sm:max-w-[55%]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={company.sealImage}
-                    alt="公章"
+                    alt="Digital Company Seal"
                     className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
                   />
                 </div>
@@ -1159,36 +1221,36 @@ export function ContractEditor() {
         {saveHint ? <p className="text-sm text-emerald-700">{saveHint}</p> : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={exportInColor} onChange={(e) => setExportInColor(e.target.checked)} />
-          导出为彩色（图片/PDF；不勾选时正文为黑白；公章始终按上传原色叠印）
+          Export in color (image/PDF)
         </label>
         <div className="flex flex-wrap gap-2">
           <TextButton variant="primary" onClick={saveContract}>
-            保存合同
+            Save contract
           </TextButton>
           <TextButton variant="secondary" onClick={() => void openShareModal()}>
-            分享合同
+            Share
           </TextButton>
           <TextButton variant="secondary" onClick={() => void exportImage()}>
-            生成图片
+            Export image
           </TextButton>
           <TextButton variant="secondary" onClick={() => void exportPdf()}>
-            生成PDF
+            Export PDF
           </TextButton>
         </div>
       </div>
 
       <Modal
         open={pickQuoteOpen}
-        title="从报价生成合同"
+        title="Create from quote"
         onClose={() => setPickQuoteOpen(false)}
         footer={
           <TextButton variant="secondary" onClick={() => setPickQuoteOpen(false)}>
-            关闭
+            Close
           </TextButton>
         }
       >
         <p className="mb-3 text-sm text-slate-600">
-          选择一条已保存的本地报价，将带入明细、客户、我司及默认合同条款（可再修改）。
+          Pick a saved quotation. We’ll copy line items, parties and default clauses into this contract.
         </p>
         <div className="max-h-72 space-y-1 overflow-y-auto">
           {getQuotes()
@@ -1206,34 +1268,34 @@ export function ContractEditor() {
               </button>
             ))}
         </div>
-        {getQuotes().length === 0 ? <p className="py-4 text-center text-sm text-slate-500">暂无本地报价</p> : null}
+        {getQuotes().length === 0 ? <p className="py-4 text-center text-sm text-slate-500">No local quotations</p> : null}
       </Modal>
 
       <Modal
         open={shareOpen}
-        title="分享合同"
+        title="Share contract"
         onClose={closeShareModal}
         panelClassName="max-w-xl"
         footer={
           <>
             <TextButton variant="secondary" onClick={closeShareModal}>
-              关闭
+              Close
             </TextButton>
             <TextButton variant="primary" disabled={!shareUrl} onClick={() => void copyShareUrl()}>
-              复制链接
+              Copy link
             </TextButton>
             <TextButton variant="secondary" disabled={!shareQr} onClick={downloadShareQr}>
-              下载二维码
+              Download QR
             </TextButton>
           </>
         }
       >
-        {shareLoading ? <p className="text-center text-sm text-slate-600">正在生成…</p> : null}
+        {shareLoading ? <p className="text-center text-sm text-slate-600">Generating…</p> : null}
         {shareError ? <p className="text-sm text-red-600">{shareError}</p> : null}
         {shareUrl && !shareError ? (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              将链接或二维码发给对方，打开后为只读预览图（与默认导出图片样式一致）。为避免内存占用过大，分享仅包含文本和金额信息，不包含商品图片。
+              Send the link or QR code to your customer. It opens a read-only preview (same style as the default export).
             </p>
             <input
               readOnly
@@ -1253,22 +1315,22 @@ export function ContractEditor() {
 
       <Modal
         open={pickerOpen}
-        title="选择商品"
+        title="Select a product"
         onClose={() => setPickerOpen(false)}
         footer={
           <TextButton variant="secondary" onClick={() => setPickerOpen(false)}>
-            关闭
+            Close
           </TextButton>
         }
       >
         <input
           className="mb-3 w-full rounded border px-3 py-2 text-sm"
-          placeholder="搜索"
+          placeholder="Search"
           value={productSearch}
           onChange={(e) => setProductSearch(e.target.value)}
         />
         <TextButton variant="secondary" className="mb-3" onClick={() => setQuickProductOpen(true)}>
-          快速登记商品
+          Quick add product
         </TextButton>
         <div className="max-h-64 space-y-1 overflow-y-auto">
           {productsFiltered.map((p) => (
@@ -1286,15 +1348,15 @@ export function ContractEditor() {
 
       <Modal
         open={quickProductOpen}
-        title="快速登记商品"
+        title="Quick add product"
         onClose={() => setQuickProductOpen(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setQuickProductOpen(false)}>
-              取消
+              Cancel
             </TextButton>
             <TextButton variant="primary" onClick={saveQuickProduct}>
-              保存并加入合同
+              Save & add to contract
             </TextButton>
           </>
         }
@@ -1302,38 +1364,38 @@ export function ContractEditor() {
         <div className="space-y-2 text-sm">
           <input
             className="w-full rounded border px-2 py-1.5"
-            placeholder="名称"
+            placeholder="Name"
             value={quickProduct.name}
             onChange={(e) => setQuickProduct((s) => ({ ...s, name: e.target.value }))}
           />
           <input
             className="w-full rounded border px-2 py-1.5"
-            placeholder="编号"
+            placeholder="Code"
             value={quickProduct.code}
             onChange={(e) => setQuickProduct((s) => ({ ...s, code: e.target.value }))}
           />
           <input
             className="w-full rounded border px-2 py-1.5"
-            placeholder="型号"
+            placeholder="Model"
             value={quickProduct.model}
             onChange={(e) => setQuickProduct((s) => ({ ...s, model: e.target.value }))}
           />
           <input
             className="w-full rounded border px-2 py-1.5"
-            placeholder="规格"
+            placeholder="Spec"
             value={quickProduct.spec}
             onChange={(e) => setQuickProduct((s) => ({ ...s, spec: e.target.value }))}
           />
           <input
             className="w-full rounded border px-2 py-1.5"
-            placeholder="单位"
+            placeholder="Unit"
             value={quickProduct.unit}
             onChange={(e) => setQuickProduct((s) => ({ ...s, unit: e.target.value }))}
           />
           <input
             type="number"
             className="w-full rounded border px-2 py-1.5"
-            placeholder="单价"
+            placeholder="Unit price"
             value={quickProduct.price || ""}
             onChange={(e) => setQuickProduct((s) => ({ ...s, price: Number.parseFloat(e.target.value) || 0 }))}
           />

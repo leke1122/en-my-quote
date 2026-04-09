@@ -4,7 +4,7 @@ export function contractLinesSubtotal(lines: ContractLine[]): number {
   return lines.reduce((s, l) => s + l.amount, 0);
 }
 
-/** 税额 = 商品金额合计 × 税率%（与报价页逻辑一致） */
+/** Tax = line subtotal × rate% (same as quote page) */
 export function contractTaxFromSubtotal(
   subtotal: number,
   taxIncluded: boolean,
@@ -30,7 +30,7 @@ export function contractGrandTotalFromState(
   return sub + tax + extra;
 }
 
-/** 已保存合同（兼容无 tax/extra 字段的旧数据） */
+/** Saved contract with defaults for legacy rows missing tax/extra */
 export function contractStoredGrandTotal(c: Contract): number {
   return contractGrandTotalFromState(
     c.lines,

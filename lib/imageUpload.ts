@@ -10,16 +10,16 @@ export async function readImageCompressedDataUrl(
     reader.onload = () => {
       const result = reader.result;
       if (typeof result === "string") resolve(result);
-      else reject(new Error("读取图片失败"));
+      else reject(new Error("Failed to read image"));
     };
-    reader.onerror = () => reject(new Error("读取图片失败"));
+    reader.onerror = () => reject(new Error("Failed to read image"));
     reader.readAsDataURL(file);
   });
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
     el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error("图片解码失败"));
+    el.onerror = () => reject(new Error("Image decode failed"));
     el.src = dataUrl;
   });
 
@@ -31,7 +31,7 @@ export async function readImageCompressedDataUrl(
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("无法处理图片");
+  if (!ctx) throw new Error("Cannot process image");
   ctx.drawImage(img, 0, 0, targetW, targetH);
   return canvas.toDataURL("image/jpeg", quality);
 }

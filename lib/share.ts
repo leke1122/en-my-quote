@@ -23,7 +23,7 @@ function base64UrlDecodeToBytes(s: string): Uint8Array {
   return out;
 }
 
-/** 去掉明细行中的大图，缩短分享链接（打开后仍可正常填价与保存） */
+/** Strip inline row images from share payload to shorten URLs */
 export function stripImagesForShare<T>(payload: T): T {
   const raw = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
   if (Array.isArray(raw.lines)) {
@@ -63,7 +63,7 @@ export function decodeQuoteShare<T>(encoded: string): T | null {
 }
 
 /**
- * 生成可放入 URL 的片段（含 z./p. 前缀），优先 gzip 压缩。
+ * Build URL-safe share fragment (z./p. prefix), gzip when helpful.
  */
 export async function encodeSharePayload(payload: unknown): Promise<string> {
   const lean = stripImagesForShare(payload);

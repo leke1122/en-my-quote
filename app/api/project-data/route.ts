@@ -20,22 +20,7 @@ function emptyPayload(): DataBackupPayload {
     contracts: [],
     contractCounter: {},
     settings: {
-      wpsAppId: "",
-      wpsAppSecret: "",
-      wpsToken: "",
-      wpsDbsheetFileId: "",
-      wpsDbsheetSheetId: "",
-      wpsFieldQuoteNo: "",
-      wpsFieldDate: "",
-      wpsFieldCustomer: "",
-      wpsFieldProductName: "",
-      wpsFieldModel: "",
-      wpsFieldSpec: "",
-      wpsFieldUnit: "",
-      wpsFieldQty: "",
-      wpsFieldPrice: "",
-      wpsFieldAmount: "",
-      feishuKbUrl: "https://www.feishu.cn/",
+      documentCurrency: "USD",
     },
   };
 }
@@ -50,11 +35,11 @@ async function getSessionUserId() {
 export async function GET() {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
   const userId = await getSessionUserId();
   if (!userId) {
-    return NextResponse.json({ ok: false, error: "未登录" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
 
   const row = await prisma.userProjectData.findUnique({ where: { userId } });
@@ -65,16 +50,16 @@ export async function GET() {
 export async function PUT(req: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
   const userId = await getSessionUserId();
   if (!userId) {
-    return NextResponse.json({ ok: false, error: "未登录" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
 
   const body = (await req.json().catch(() => null)) as { payload?: unknown } | null;
   if (!body || typeof body !== "object" || !body.payload || typeof body.payload !== "object") {
-    return NextResponse.json({ ok: false, error: "请求参数错误" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request parameters." }, { status: 400 });
   }
 
   await prisma.userProjectData.upsert({

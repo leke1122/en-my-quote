@@ -2,7 +2,7 @@ import {
   finalizeContractExportLayoutFromClone,
   resetContractExportCaptureMeta,
 } from "@/lib/contractExportSeal";
-import { formatSigningDateChinese } from "@/lib/signingDate";
+import { formatSigningDateForExport } from "@/lib/signingDate";
 
 export interface ContractHtml2CanvasCloneOpts {
   hasClausesContent: boolean;
@@ -35,7 +35,7 @@ function tuneContractTableLayout(root: HTMLElement) {
   if (rows.length >= 20 || longest >= 42) {
     table.classList.add("contract-export-ultra");
   }
-  // 列宽优先给「名称/规格/备注」，压缩单位/数量/单价/金额等短字段列。
+  // Prefer width for name/spec/notes columns; keep unit/qty/price/amount narrow.
   if (rows.length >= 20 || longest >= 42) {
     ensureColgroup([10, 20, 24, 6, 7, 9, 10, 14]);
   } else if (rows.length >= 12 || longest >= 24) {
@@ -64,7 +64,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   el.classList.add("quote-export-capture");
   const exportFix = clonedDoc.createElement("style");
   exportFix.textContent = `
-/* 固定为 A4 纸宽（210mm），避免 max-content + 移动端视口导致明细表被压窄 */
+/* Lock to A4 width (210mm) so the line table does not shrink on mobile viewports */
 #contract-print.quote-export-capture {
   max-width: 210mm !important;
   width: 210mm !important;
@@ -160,7 +160,7 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
   height: auto !important;
   object-fit: contain !important;
 }
-/* 公章：最大边约 52mm（与 measureSealInClone 一致），保留上传图宽高比 */
+/* Seal: max edge ~52mm (matches measureSealInClone), preserve uploaded aspect ratio */
 #contract-print.quote-export-capture .contract-print-seal-wrap {
   max-width: 58% !important;
 }
@@ -211,9 +211,9 @@ export function contractHtml2canvasOnClone(clonedDoc: Document, opts: ContractHt
     const wrap = clonedDoc.createElement("span");
     wrap.className = "contract-export-cell-text whitespace-pre-wrap break-words leading-normal";
     if (input.type === "date") {
-      wrap.textContent = input.value ? formatSigningDateChinese(input.value) : "—";
+      wrap.textContent = input.value ? formatSigningDateForExport(input.value) : "—";
     } else if (input.type === "checkbox") {
-      wrap.textContent = input.checked ? "是" : "否";
+      wrap.textContent = input.checked ? "Yes" : "No";
     } else {
       wrap.textContent = input.value || "—";
     }

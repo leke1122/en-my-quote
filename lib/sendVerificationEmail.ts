@@ -4,28 +4,28 @@ import { ses } from "tencentcloud-sdk-nodejs-ses";
 export type VerificationEmailScene = "register" | "reset-password";
 
 function subjectFor(scene: VerificationEmailScene): string {
-  if (scene === "reset-password") return "智序签单 — 找回密码验证码";
-  return "智序签单 — 注册验证码";
+  if (scene === "reset-password") return "My Quote — password reset code";
+  return "My Quote — sign-up verification code";
 }
 
 function contentFor(scene: VerificationEmailScene, code: string): { html: string; textPlain: string } {
   if (scene === "reset-password") {
     return {
-      html: `<p>您正在找回智序系统账号密码。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`,
-      textPlain: `您正在找回智序系统账号密码。验证码：${code}，10 分钟内有效，请勿告知他人。`,
+      html: `<p>You requested a password reset.</p><p>Your code: <strong style="font-size:18px">${code}</strong></p><p>Valid for 10 minutes. Do not share this code.</p>`,
+      textPlain: `Password reset code: ${code}. Valid for 10 minutes. Do not share.`,
     };
   }
   return {
-    html: `<p>您正在注册智序系统账号。</p><p>验证码：<strong style="font-size:18px">${code}</strong></p><p>10 分钟内有效，请勿告知他人。</p>`,
-    textPlain: `您正在注册智序系统账号。验证码：${code}，10 分钟内有效，请勿告知他人。`,
+    html: `<p>You are creating an account.</p><p>Your code: <strong style="font-size:18px">${code}</strong></p><p>Valid for 10 minutes. Do not share this code.</p>`,
+    textPlain: `Sign-up code: ${code}. Valid for 10 minutes. Do not share.`,
   };
 }
 
 /**
- * 注册验证码发信：
- * 1）腾讯云邮件推送 HTTP API（SecretId/SecretKey；若账号仅允许模板发信，需配 TENCENT_SES_TEMPLATE_ID）
- * 2）通用 SMTP
- * 开发环境均未配置时仅在控制台打印验证码。
+ * Sends verification email via:
+ * 1) Tencent Cloud SES HTTP API (SecretId/SecretKey; template mode needs TENCENT_SES_TEMPLATE_ID)
+ * 2) Generic SMTP
+ * In development, logs the code to the console if neither is configured.
  */
 export async function sendVerificationEmail(
   to: string,
@@ -94,7 +94,7 @@ export async function sendVerificationEmail(
     } catch (e) {
       const msg = errMsg(e);
       console.warn(`[email] Tencent SES API failed: ${msg}`);
-      failures.push(`腾讯云API：${msg.slice(0, 280)}`);
+      failures.push(`Tencent SES API: ${msg.slice(0, 280)}`);
     }
   }
 
@@ -125,7 +125,7 @@ export async function sendVerificationEmail(
     } catch (e) {
       const msg = errMsg(e);
       console.warn(`[email] SMTP failed: ${msg}`);
-      failures.push(`SMTP：${msg.slice(0, 200)}`);
+      failures.push(`SMTP: ${msg.slice(0, 200)}`);
     }
   }
 
@@ -138,19 +138,19 @@ export async function sendVerificationEmail(
   const hasSmtp = !!(smtpHost && smtpUser && smtpPass && smtpFrom);
 
   if ((hasTencent || hasSmtp) && failures.length > 0) {
-    const hint = /模板|自定义发送|WithOutPermission/i.test(failures.join(""))
-      ? " 请在腾讯云「邮件推送」新建邮件模板（正文用 {{code}} 占位），审核通过后把模板数字 ID 配到 Vercel 的 TENCENT_SES_TEMPLATE_ID；若变量名不是 code，请设置 TENCENT_SES_TEMPLATE_VAR_CODE。"
+    const hint = /模板|自定义发送|WithOutPermission|template|Template/i.test(failures.join(""))
+      ? " In Tencent SES, create an approved template with a {{code}} placeholder, set TENCENT_SES_TEMPLATE_ID (and TENCENT_SES_TEMPLATE_VAR_CODE if the variable is not named code)."
       : "";
     return {
       ok: false,
-      error: `邮件发送失败。${failures.join(" ")}${hint} 详见 Vercel Logs [email]。`,
+      error: `Failed to send email. ${failures.join(" ")}${hint} Check server logs [email].`,
     };
   }
 
   return {
     ok: false,
     error:
-      "未配置邮件发送。腾讯云需：TENCENT_SES_SECRET_ID、TENCENT_SES_SECRET_KEY、TENCENT_SES_FROM；若控制台仅支持模板发信，另加 TENCENT_SES_TEMPLATE_ID（及可选 TENCENT_SES_TEMPLATE_VAR_CODE）。或使用 SMTP_*。保存后 Redeploy。",
+      "Email is not configured. For Tencent SES set TENCENT_SES_SECRET_ID, TENCENT_SES_SECRET_KEY, TENCENT_SES_FROM; add TENCENT_SES_TEMPLATE_ID if your account requires templates (optional TENCENT_SES_TEMPLATE_VAR_CODE). Or set SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM. Redeploy after changes.",
   };
 }
 

@@ -7,7 +7,7 @@ export { COOKIE_NAME };
 function getJwtSecretKey(): Uint8Array {
   const s = process.env.JWT_SECRET?.trim();
   if (!s || s.length < 16) {
-    throw new Error("JWT_SECRET 未配置或长度不足（至少 16 字符）");
+    throw new Error("JWT_SECRET is missing or too short (min 16 characters)");
   }
   return new TextEncoder().encode(s);
 }

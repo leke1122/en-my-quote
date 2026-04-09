@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  /** 覆盖内容区最大宽度，默认 max-w-lg */
+  /** Override panel max width; default max-w-lg */
   panelClassName?: string;
 }
 
@@ -41,7 +41,7 @@ export function Modal({
             onClick={onClose}
             className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
           >
-            关闭
+            Close
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">{children}</div>

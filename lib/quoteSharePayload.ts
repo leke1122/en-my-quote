@@ -1,3 +1,4 @@
+import { normalizeDocumentCurrency } from "@/lib/format";
 import type { Company, Customer, QuoteExtraFee, QuoteLine } from "@/lib/types";
 
 export type QuoteCompanySnapshot = Pick<
@@ -29,8 +30,15 @@ export interface QuoteSharePayload {
   taxRate: number;
   extraFees?: QuoteExtraFee[];
   terms?: string[];
-  /** 是否显示公章（与报价单编辑一致） */
+  /** Show seal (same as quote editor) */
   showSeal?: boolean;
+  /** ISO 4217 */
+  currency?: string;
+  validUntil?: string;
+  paymentTerms?: string;
+  status?: "draft" | "sent" | "viewed" | "accepted" | "paid";
+  paymentLink?: string;
+  paidAt?: string;
 }
 
 export function parseQuoteSharePayload(raw: unknown): QuoteSharePayload | null {
@@ -52,5 +60,19 @@ export function parseQuoteSharePayload(raw: unknown): QuoteSharePayload | null {
     extraFees: Array.isArray(o.extraFees) ? (o.extraFees as QuoteExtraFee[]) : [],
     terms: Array.isArray(o.terms) ? (o.terms as string[]) : [],
     showSeal: !!o.showSeal,
+    currency:
+      typeof o.currency === "string" ? normalizeDocumentCurrency(o.currency) : undefined,
+    validUntil: typeof o.validUntil === "string" ? o.validUntil : undefined,
+    paymentTerms: typeof o.paymentTerms === "string" ? o.paymentTerms : undefined,
+    status:
+      o.status === "draft" ||
+      o.status === "sent" ||
+      o.status === "viewed" ||
+      o.status === "accepted" ||
+      o.status === "paid"
+        ? o.status
+        : undefined,
+    paymentLink: typeof o.paymentLink === "string" ? o.paymentLink : undefined,
+    paidAt: typeof o.paidAt === "string" ? o.paidAt : undefined,
   };
 }

@@ -11,26 +11,26 @@ function randomSixDigit(): string {
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "服务端未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured on the server." }, { status: 503 });
   }
 
   let body: { email?: string };
   try {
     body = (await request.json()) as { email?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
     .trim()
     .toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) {
-    return NextResponse.json({ ok: false, error: "该邮箱已注册，请直接登录" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: "This email is already registered. Sign in instead." }, { status: 409 });
   }
 
   const latest = await prisma.emailVerificationCode.findFirst({
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     orderBy: { createdAt: "desc" },
   });
   if (latest && Date.now() - latest.createdAt.getTime() < 60_000) {
-    return NextResponse.json({ ok: false, error: "操作过于频繁，请稍后再试（60 秒）" }, { status: 429 });
+    return NextResponse.json({ ok: false, error: "Too many requests. Wait 60 seconds and try again." }, { status: 429 });
   }
 
   const code = randomSixDigit();
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: sent.error }, { status: 503 });
   }
 
-  const payload: Record<string, unknown> = { ok: true, message: "验证码已发送，请查收邮箱（含垃圾邮件箱）" };
+  const payload: Record<string, unknown> = { ok: true, message: "Verification code sent. Check your inbox and spam folder." };
   if (sent.via === "dev" && process.env.NODE_ENV === "development") {
     payload.debugCode = code;
   }

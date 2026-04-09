@@ -10,14 +10,14 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   let body: { email?: string; password?: string };
   try {
     body = (await request.json()) as { email?: string; password?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
@@ -26,10 +26,10 @@ export async function POST(request: Request) {
   const password = String(body.password ?? "");
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
   if (password.length < 8) {
-    return NextResponse.json({ ok: false, error: "密码至少 8 位" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Password must be at least 8 characters." }, { status: 400 });
   }
 
   try {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       token = await createSessionToken(user.id, user.email);
     } catch {
       await prisma.user.delete({ where: { id: user.id } });
-      return NextResponse.json({ ok: false, error: "JWT_SECRET 未正确配置" }, { status: 503 });
+      return NextResponse.json({ ok: false, error: "JWT_SECRET is not configured correctly." }, { status: 503 });
     }
 
     cookies().set(COOKIE_NAME, token, {
@@ -76,10 +76,10 @@ export async function POST(request: Request) {
   } catch (e: unknown) {
     const msg = e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002";
     if (msg) {
-      return NextResponse.json({ ok: false, error: "该邮箱已注册" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: "This email is already registered." }, { status: 409 });
     }
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "注册失败" },
+      { ok: false, error: e instanceof Error ? e.message : "Registration failed." },
       { status: 500 }
     );
   }

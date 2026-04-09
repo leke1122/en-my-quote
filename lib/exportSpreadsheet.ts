@@ -1,4 +1,4 @@
-/** 明细表导出：CSV（UTF-8 BOM，Excel 可正确打开中文）与 HTML 表格式 .xls（Excel 兼容） */
+/** Line export: CSV with UTF-8 BOM, and HTML-as-.xls for Excel */
 
 function csvCell(value: string): string {
   if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -21,7 +21,7 @@ function htmlEscape(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** 单 HTML 表格，扩展名 .xls，Excel / WPS 表格可直接打开 */
+/** Single HTML table saved as .xls for Excel compatibility */
 export function buildExcelHtmlTableBlob(headers: string[], rows: (string | number)[][]): Blob {
   let html =
     '<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="UTF-8" /></head><body><table border="1" cellspacing="0" cellpadding="4">';

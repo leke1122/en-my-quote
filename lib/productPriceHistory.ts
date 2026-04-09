@@ -20,9 +20,9 @@ function pushPrice(arr: number[], p: number) {
 }
 
 /**
- * 根据已保存的报价单、合同，汇总每个商品在历史单据中的单价最高/最低值。
- * 报价行：优先按 productId 匹配，否则按商品编码匹配。
- * 合同行：按 productCode 与商品编码匹配。
+ * Min/max unit prices per product from saved quotes and contracts.
+ * Quote lines: match by productId first, else product code.
+ * Contract lines: match productCode to catalog code.
  */
 export function buildProductPriceHistoryMap(
   products: Product[],

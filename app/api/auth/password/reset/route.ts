@@ -8,14 +8,14 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   let body: { email?: string; code?: string; newPassword?: string };
   try {
     body = (await request.json()) as { email?: string; code?: string; newPassword?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
@@ -27,24 +27,24 @@ export async function POST(request: Request) {
   const rl = rateLimitCheck(`reset:${ip}:${email}`, { max: 12, windowMs: 10 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
-      { ok: false, error: `尝试次数过多，请 ${rl.retryAfterSec} 秒后重试` },
+      { ok: false, error: `Too many attempts. Try again in ${rl.retryAfterSec} seconds.` },
       { status: 429 }
     );
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
   if (!/^\d{6}$/.test(code)) {
-    return NextResponse.json({ ok: false, error: "请输入 6 位数字验证码" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Enter the 6-digit verification code." }, { status: 400 });
   }
   if (newPassword.length < 8) {
-    return NextResponse.json({ ok: false, error: "新密码至少 8 位" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "New password must be at least 8 characters." }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    return NextResponse.json({ ok: false, error: "验证码错误或已过期，请重新获取" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid or expired code. Request a new one." }, { status: 400 });
   }
 
   const row = await prisma.emailVerificationCode.findFirst({
@@ -56,13 +56,13 @@ export async function POST(request: Request) {
     orderBy: { createdAt: "desc" },
   });
   if (!row) {
-    return NextResponse.json({ ok: false, error: "验证码错误或已过期，请重新获取" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid or expired code. Request a new one." }, { status: 400 });
   }
 
   await prisma.emailVerificationCode.deleteMany({ where: { email } });
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
 
-  return NextResponse.json({ ok: true, message: "密码已重置，请使用新密码登录" });
+  return NextResponse.json({ ok: true, message: "Password updated. Sign in with your new password." });
 }
 

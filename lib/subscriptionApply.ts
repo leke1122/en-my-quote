@@ -6,7 +6,7 @@ function addDays(from: Date, days: number): Date {
   return d;
 }
 
-/** 顺延规则：有效期内续费 -> 从 validUntil 顺延；否则从现在起算。试用/未激活也从现在起算。 */
+/** Rollover: renew while active extends from validUntil; otherwise starts from now (trial/inactive too). */
 function computeExtendWindow(
   sub: Subscription | null,
   now: Date,
@@ -32,7 +32,7 @@ export async function applySubscriptionExtension(
   info: { plan: string; lifetime: boolean; addDays: number; provider: string; externalId?: string | null }
 ): Promise<{ ok: true; validFrom: Date; validUntil: Date | null } | { ok: false; error: string }> {
   const user = await prisma.user.findUnique({ where: { id: userId }, include: { subscription: true } });
-  if (!user) return { ok: false, error: "用户不存在" };
+  if (!user) return { ok: false, error: "User not found" };
 
   const now = new Date();
   const { validFrom, validUntil } = computeExtendWindow(user.subscription, now, {

@@ -6,21 +6,21 @@ import { isSubscriptionActive } from "@/lib/subscriptionLogic";
 
 export const runtime = "nodejs";
 
-/** 当前登录用户的订阅快照（支付对接后可由 Webhook 更新同一张表） */
+/** Current user's subscription snapshot (webhooks can update the same row) */
 export async function GET() {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   const raw = cookies().get(COOKIE_NAME)?.value;
   if (!raw) {
-    return NextResponse.json({ ok: false, error: "未登录" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
 
   const session = await verifySessionToken(raw);
   if (!session) {
-    return NextResponse.json({ ok: false, error: "登录已失效" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Session expired. Sign in again." }, { status: 401 });
   }
 
   const sub = await prisma.subscription.findUnique({

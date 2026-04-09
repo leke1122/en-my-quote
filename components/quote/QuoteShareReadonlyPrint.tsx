@@ -1,4 +1,5 @@
-import { formatCurrency } from "@/lib/format";
+import { formatDateUSFromIso, formatMoney, normalizeDocumentCurrency } from "@/lib/format";
+import { quoteDisplayStatus } from "@/lib/quoteStatus";
 import type { QuoteSharePayload } from "@/lib/quoteSharePayload";
 import { quoteGrandTotal, quoteSubtotal, quoteTax } from "@/lib/quoteTotals";
 
@@ -17,6 +18,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
   const extraFees = data.extraFees ?? [];
   const terms = data.terms ?? [];
   const showLineImages = lines.some((l) => !!l.image);
+  const docCurrency = normalizeDocumentCurrency(data.currency);
 
   const subtotal = quoteSubtotal(lines);
   const taxAmt = quoteTax(subtotal, data.taxIncluded, data.taxRate);
@@ -24,6 +26,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
 
   const hasTerms = termsHasContent(terms);
   const hasExtra = quoteHasExtraFees(extraFees);
+  const quoteStatus = quoteDisplayStatus(data.status, data.validUntil);
 
   return (
     <div
@@ -34,7 +37,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
         <div className="flex items-start gap-3 sm:gap-4">
           <div className="w-16 shrink-0 sm:w-24" aria-hidden />
           <h2 className="min-w-0 flex-1 pt-1 text-center text-xl font-semibold tracking-wide text-slate-900">
-            报价单
+            Quotation
           </h2>
           <div className="quote-print-logo-cell flex h-16 w-20 shrink-0 items-start justify-end sm:h-20 sm:w-28">
             {company?.logo ? (
@@ -49,51 +52,86 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
-            <div className="text-xs text-slate-500">报价单号：</div>
+            <div className="text-xs text-slate-500">Quote No.</div>
             <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium leading-normal text-slate-900">
               {data.quoteNo || "—"}
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">报价日期：</div>
+            <div className="text-xs text-slate-500">Quote date</div>
             <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-normal">
-              {data.date || "—"}
+              {data.date ? formatDateUSFromIso(data.date) : "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">Valid until</div>
+            <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-normal">
+              {data.validUntil ? formatDateUSFromIso(data.validUntil) : "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">Payment terms</div>
+            <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-normal">
+              {data.paymentTerms || "Net 30"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">Status</div>
+            <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium uppercase leading-normal">
+              {quoteStatus}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <div className="text-xs text-slate-500">Payment link</div>
+            <div className="mt-1 min-h-11 rounded border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-normal break-all">
+              {data.paymentLink ? (
+                <a
+                  href={data.paymentLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-700 underline"
+                >
+                  {data.paymentLink}
+                </a>
+              ) : (
+                "—"
+              )}
             </div>
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
-              <div className="text-xs font-medium text-slate-600">供方名称</div>
+              <div className="text-xs font-medium text-slate-600">Seller</div>
               <div className="mt-2 text-base font-medium text-slate-900">{company?.name || "—"}</div>
               <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm leading-relaxed text-slate-700">
                 <div>
-                  <span className="text-slate-500">联系人：</span>
+                  <span className="text-slate-500">Contact:</span>
                   {company?.contact || "—"}
                 </div>
                 <div>
-                  <span className="text-slate-500">联系电话：</span>
+                  <span className="text-slate-500">Phone:</span>
                   {company?.phone || "—"}
                 </div>
                 <div className="break-words">
-                  <span className="text-slate-500">地址：</span>
+                  <span className="text-slate-500">Address:</span>
                   {company?.address || "—"}
                 </div>
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
-              <div className="text-xs font-medium text-slate-600">客户名称</div>
+              <div className="text-xs font-medium text-slate-600">Customer</div>
               <div className="mt-2 text-base font-semibold text-slate-900">{customer?.name || "—"}</div>
               <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm leading-relaxed text-slate-800">
                 <div>
-                  <span className="text-slate-500">联系人：</span>
+                  <span className="text-slate-500">Contact:</span>
                   {customer?.contact || "—"}
                 </div>
                 <div>
-                  <span className="text-slate-500">联系电话：</span>
+                  <span className="text-slate-500">Phone:</span>
                   {customer?.phone || "—"}
                 </div>
                 <div className="break-words">
-                  <span className="text-slate-500">地址：</span>
+                  <span className="text-slate-500">Address:</span>
                   {customer?.address || "—"}
                 </div>
               </div>
@@ -103,23 +141,23 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
       </div>
 
       <div className="py-5">
-        <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">【报价明细】</h3>
+        <h3 className="mb-3 text-sm font-semibold tracking-wide text-slate-900">Line items</h3>
 
         <div className="quote-print-lines-desktop quote-print-lines-wrap hidden md:block overflow-x-auto">
           <table className="quote-table w-full min-w-[960px] border-collapse text-center text-sm">
             <thead className="bg-slate-100 text-slate-700">
               <tr>
                 {showLineImages ? (
-                  <th className="border border-slate-200 px-2 py-2.5 font-medium">图</th>
+                  <th className="border border-slate-200 px-2 py-2.5 font-medium">Image</th>
                 ) : null}
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">名称</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">型号</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">规格</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">单位</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">单价</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">数量</th>
-                <th className="border border-slate-200 px-2 py-2.5 font-medium">金额</th>
-                <th className="min-w-[8rem] border border-slate-200 px-2 py-2.5 font-medium">备注</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Item</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Model</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Spec</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Unit</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Unit price</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Qty</th>
+                <th className="border border-slate-200 px-2 py-2.5 font-medium">Amount</th>
+                <th className="min-w-[8rem] border border-slate-200 px-2 py-2.5 font-medium">Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +186,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
                   <td className="border border-slate-200 px-2 py-2 align-top text-center">{l.price}</td>
                   <td className="border border-slate-200 px-2 py-2 align-top text-center">{l.qty}</td>
                   <td className="whitespace-nowrap border border-slate-200 px-2 py-2 align-top text-center">
-                    {formatCurrency(l.amount)}
+                    {formatMoney(l.amount, docCurrency)}
                   </td>
                   <td className="border border-slate-200 px-2 py-2 align-top text-center text-sm leading-relaxed">
                     {l.remark?.trim() ? l.remark : "—"}
@@ -158,7 +196,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
             </tbody>
           </table>
           {lines.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-500">暂无明细</p>
+            <p className="py-4 text-center text-sm text-slate-500">No line items</p>
           ) : null}
         </div>
 
@@ -176,33 +214,33 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
                     {l.model} / {l.spec}
                   </div>
                   <div className="mt-2 text-xs text-slate-600">
-                    单价 {l.price}　数量 {l.qty}
+                    Unit price {l.price} · Qty {l.qty}
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">备注 {l.remark?.trim() || "—"}</div>
-                  <div className="mt-1 font-medium">金额 {formatCurrency(l.amount)}</div>
+                  <div className="mt-1 text-xs text-slate-600">Notes {l.remark?.trim() || "—"}</div>
+                  <div className="mt-1 font-medium">Amount {formatMoney(l.amount, docCurrency)}</div>
                 </div>
               </div>
             </div>
           ))}
           {lines.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-500">暂无明细</p>
+            <p className="py-4 text-center text-sm text-slate-500">No line items</p>
           ) : null}
         </div>
       </div>
 
       <div className="border-t border-slate-200 pt-5">
         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-800">
-          <span>含税：{data.taxIncluded ? "是" : "否"}</span>
-          {data.taxIncluded ? <span>税率（%）：{data.taxRate}</span> : null}
+          <span>Tax included: {data.taxIncluded ? "Yes" : "No"}</span>
+          {data.taxIncluded ? <span>Tax rate (%): {data.taxRate}</span> : null}
         </div>
 
         {hasExtra ? (
           <div id="quote-export-extra-fees-fields" className="mt-3 space-y-2">
-            <div className="text-sm text-slate-600">其他费用</div>
+            <div className="text-sm text-slate-600">Additional fees</div>
             {extraFees.map((f) => (
               <div key={f.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-[6rem]">{f.name || "—"}</span>
-                <span>{formatCurrency(f.amount)}</span>
+                <span>{formatMoney(f.amount, docCurrency)}</span>
               </div>
             ))}
           </div>
@@ -210,13 +248,13 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
 
         <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm">
           <div className="flex justify-between text-slate-700">
-            <span>商品合计</span>
-            <span>{formatCurrency(subtotal)}</span>
+            <span>Subtotal</span>
+            <span>{formatMoney(subtotal, docCurrency)}</span>
           </div>
           {data.taxIncluded ? (
             <div className="flex justify-between text-slate-700">
-              <span>税额</span>
-              <span>{formatCurrency(taxAmt)}</span>
+              <span>Tax</span>
+              <span>{formatMoney(taxAmt, docCurrency)}</span>
             </div>
           ) : null}
           {hasExtra ? (
@@ -224,13 +262,13 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
               id="quote-export-extra-fees-total-row"
               className="flex justify-between text-slate-700"
             >
-              <span>其他费用合计</span>
-              <span>{formatCurrency(extraFees.reduce((s, f) => s + f.amount, 0))}</span>
+              <span>Additional fees</span>
+              <span>{formatMoney(extraFees.reduce((s, f) => s + f.amount, 0), docCurrency)}</span>
             </div>
           ) : null}
           <div className="flex justify-between border-t border-slate-300 pt-3 text-base font-semibold text-slate-900">
-            <span>总价</span>
-            <span>{formatCurrency(grand)}</span>
+            <span>Total</span>
+            <span>{formatMoney(grand, docCurrency)}</span>
           </div>
         </div>
       </div>
@@ -241,7 +279,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={company.sealImage}
-              alt="公章"
+              alt="Digital Company Seal"
               className="contract-print-seal h-auto max-h-[44mm] w-auto max-w-[44mm] object-contain opacity-[0.92] sm:max-h-[52mm] sm:max-w-[52mm]"
             />
           </div>
@@ -250,7 +288,7 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
 
       {hasTerms ? (
         <div id="quote-terms-section" className="mt-8 border-t border-slate-200 pt-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900">报价条款</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">Terms & Conditions</h3>
           <div className="space-y-3 text-sm text-slate-800">
             {terms
               .filter((t) => t.trim().length > 0)
@@ -266,14 +304,14 @@ export function QuoteShareReadonlyPrint({ data }: { data: QuoteSharePayload }) {
 
       {company && (company.taxId || company.bankName) ? (
         <div className="mt-10 border-t-2 border-slate-300 pt-6 text-sm leading-relaxed text-slate-700">
-          <div className="mb-2 text-xs font-medium text-slate-500">供方账户信息</div>
+          <div className="mb-2 text-xs font-medium text-slate-500">Seller payment details</div>
           {company.taxId ? (
-            <div className="whitespace-pre-wrap break-words">税号：{company.taxId}</div>
+            <div className="whitespace-pre-wrap break-words">Tax ID: {company.taxId}</div>
           ) : null}
           {company.bankName ? (
             <div className="whitespace-pre-wrap break-words">
-              开户行：{company.bankName}
-              {company.bankCode ? `　银行卡号：${company.bankCode}` : ""}
+              Bank: {company.bankName}
+              {company.bankCode ? `  Account: ${company.bankCode}` : ""}
             </div>
           ) : null}
         </div>

@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
     setMsg("");
     const em = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
-      setMsg("邮箱格式不正确");
+      setMsg("Invalid email format");
       return;
     }
     if (cooldown > 0) return;
@@ -41,14 +41,14 @@ export default function ForgotPasswordPage() {
       });
       const j = (await res.json()) as { ok?: boolean; error?: string; message?: string; debugCode?: string };
       if (!res.ok || !j.ok) {
-        setMsg(j.error || "发送失败");
+        setMsg(j.error || "Send failed");
         return;
       }
       if (j.debugCode) setCode(String(j.debugCode));
       setCooldown(60);
-      setMsg(j.message || "验证码已发送，请查收邮箱（含垃圾邮件箱）");
+      setMsg(j.message || "Code sent — check your inbox and spam folder.");
     } catch {
-      setMsg("网络错误");
+      setMsg("Network error");
     } finally {
       setSending(false);
     }
@@ -58,19 +58,19 @@ export default function ForgotPasswordPage() {
     setMsg("");
     const em = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
-      setMsg("邮箱格式不正确");
+      setMsg("Invalid email format");
       return;
     }
     if (!/^\d{6}$/.test(code.trim())) {
-      setMsg("请输入 6 位数字验证码");
+      setMsg("Enter the 6-digit code");
       return;
     }
     if (pw.length < 8) {
-      setMsg("新密码至少 8 位");
+      setMsg("New password must be at least 8 characters");
       return;
     }
     if (pw !== pw2) {
-      setMsg("两次输入的新密码不一致");
+      setMsg("New passwords do not match");
       return;
     }
     setSubmitting(true);
@@ -82,14 +82,14 @@ export default function ForgotPasswordPage() {
       });
       const j = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       if (!res.ok || !j.ok) {
-        setMsg(j.error || "重置失败");
+        setMsg(j.error || "Reset failed");
         return;
       }
-      alert(j.message || "密码已重置，请使用新密码登录");
+      alert(j.message || "Password reset. Sign in with your new password.");
       router.push("/login");
       router.refresh();
     } catch {
-      setMsg("网络错误");
+      setMsg("Network error");
     } finally {
       setSubmitting(false);
     }
@@ -97,12 +97,12 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 py-10">
-      <h1 className="text-center text-xl font-semibold text-slate-900">找回密码</h1>
-      <p className="mt-2 text-center text-sm text-slate-600">输入注册邮箱，获取验证码后重置密码。</p>
+      <h1 className="text-center text-xl font-semibold text-slate-900">Reset password</h1>
+      <p className="mt-2 text-center text-sm text-slate-600">Enter your email, get a code, then set a new password.</p>
 
       <div className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
-          <label className="text-xs text-slate-600">邮箱</label>
+          <label className="text-xs text-slate-600">Email</label>
           <input
             type="email"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -112,22 +112,22 @@ export default function ForgotPasswordPage() {
           />
         </div>
         <div>
-          <label className="text-xs text-slate-600">验证码</label>
+          <label className="text-xs text-slate-600">Verification code</label>
           <div className="mt-1 flex gap-2">
             <input
               inputMode="numeric"
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
-              placeholder="6 位数字"
+              placeholder="6 digits"
             />
             <TextButton variant="secondary" disabled={sending || submitting || cooldown > 0} onClick={() => void sendCode()}>
-              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中…" : "发送验证码"}
+              {cooldown > 0 ? `${cooldown}s` : sending ? "Sending…" : "Send code"}
             </TextButton>
           </div>
         </div>
         <div>
-          <label className="text-xs text-slate-600">新密码（至少 8 位）</label>
+          <label className="text-xs text-slate-600">New password (min 8)</label>
           <input
             type="password"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -137,7 +137,7 @@ export default function ForgotPasswordPage() {
           />
         </div>
         <div>
-          <label className="text-xs text-slate-600">确认新密码</label>
+          <label className="text-xs text-slate-600">Confirm new password</label>
           <input
             type="password"
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -147,18 +147,18 @@ export default function ForgotPasswordPage() {
           />
         </div>
         <TextButton variant="primary" disabled={submitting} onClick={() => void resetPassword()}>
-          {submitting ? "提交中…" : "重置密码"}
+          {submitting ? "Submitting…" : "Reset password"}
         </TextButton>
         {msg ? <p className="text-sm text-slate-700">{msg}</p> : null}
       </div>
 
       <p className="mt-6 text-center text-sm">
         <Link href="/login" className="text-slate-800 underline-offset-2 hover:underline">
-          返回登录
+          Sign in
         </Link>
         {" · "}
         <Link href="/" className="text-slate-800 underline-offset-2 hover:underline">
-          首页
+          Home
         </Link>
       </p>
     </div>

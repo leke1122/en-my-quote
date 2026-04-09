@@ -1,4 +1,4 @@
-/** html2canvas 不绘制 DOM 的 CSS filter，需在得到位图后再做灰度处理（与导出图片一致） */
+/** html2canvas ignores CSS filters on DOM; grayscale the bitmap to match export */
 export function canvasGrayscaleForExport(src: HTMLCanvasElement): HTMLCanvasElement {
   const w = src.width;
   const h = src.height;

@@ -10,14 +10,14 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   let body: { email?: string; password?: string };
   try {
     body = (await request.json()) as { email?: string; password?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const rl = rateLimitCheck(`login:${ip}:${email}`, { max: 12, windowMs: 10 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
-      { ok: false, error: `尝试次数过多，请 ${rl.retryAfterSec} 秒后重试` },
+      { ok: false, error: `Too many attempts. Try again in ${rl.retryAfterSec} seconds.` },
       { status: 429 }
     );
   }
@@ -40,14 +40,14 @@ export async function POST(request: Request) {
   });
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    return NextResponse.json({ ok: false, error: "邮箱或密码错误" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Invalid email or password." }, { status: 401 });
   }
 
   let token: string;
   try {
     token = await createSessionToken(user.id, user.email);
   } catch {
-    return NextResponse.json({ ok: false, error: "JWT_SECRET 未正确配置" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "JWT_SECRET is not configured correctly." }, { status: 503 });
   }
 
   cookies().set(COOKIE_NAME, token, {

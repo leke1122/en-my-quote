@@ -82,7 +82,7 @@ function CompanyPageInner() {
   async function save() {
     const rows = getCompanies();
     if (!form.name.trim() || !form.abbr.trim()) {
-      alert("请填写公司名称与英文简写");
+      alert("Please enter company name and abbreviation (document number prefix).");
       return;
     }
     const abbr = form.abbr.trim().toUpperCase();
@@ -106,20 +106,20 @@ function CompanyPageInner() {
     setCompanies(next);
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`已保存到本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved locally, but cloud sync failed: ${sync.error}`);
     }
     setModalOpen(false);
     refresh();
   }
 
   async function remove(c: Company) {
-    if (!confirm(`确定删除「${c.name}」？`)) return;
+    if (!confirm(`Delete "${c.name}"?`)) return;
     let next = getCompanies().filter((x) => x.id !== c.id);
     next = applyDefault(next);
     setCompanies(next);
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`已删除本地数据，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Removed locally, but cloud sync failed: ${sync.error}`);
     }
     refresh();
   }
@@ -129,7 +129,7 @@ function CompanyPageInner() {
     setCompanies(next);
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
       const sync = await pushProjectDataToCloud(true);
-      if (!sync.ok) alert(`已保存默认主体到本地，但同步云端失败：${sync.error}`);
+      if (!sync.ok) alert(`Saved default locally, but cloud sync failed: ${sync.error}`);
     }
     refresh();
   }
@@ -149,7 +149,7 @@ function CompanyPageInner() {
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.type !== "image/png") {
-      alert("请上传 PNG 格式公章（透明底）");
+      alert("Please upload a PNG seal image with transparency.");
       e.target.value = "";
       return;
     }
@@ -164,10 +164,10 @@ function CompanyPageInner() {
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6">
       <PageHeader
-        title="我司信息"
+        title="Your company"
         actions={
           <TextButton variant="primary" onClick={openCreate}>
-            新增主体
+            Add profile
           </TextButton>
         }
       />
@@ -183,7 +183,7 @@ function CompanyPageInner() {
                 <div className="text-base font-semibold text-slate-900">{c.name}</div>
                 {c.isDefault ? (
                   <span className="mt-1 inline-block rounded bg-slate-800 px-2 py-0.5 text-xs text-white">
-                    默认
+                    Default
                   </span>
                 ) : null}
               </div>
@@ -202,59 +202,63 @@ function CompanyPageInner() {
                     src={c.sealImage}
                     alt=""
                     className="h-12 w-12 rounded object-contain bg-slate-50"
-                    title="公章"
+                    title="Seal"
                   />
                 ) : null}
               </div>
             </div>
             <div className="mt-3 space-y-1 text-sm text-slate-600">
-              <div>英文简写：{c.abbr}</div>
               <div>
-                联系人：{c.contact} · {c.phone}
+                Abbreviation: {c.abbr}
               </div>
-              <div>地址：{c.address || "—"}</div>
-              <div>税号：{c.taxId || "—"}</div>
-              <div>开户行：{c.bankName || "—"}</div>
-              <div>银行卡号：{c.bankCode || "—"}</div>
+              <div>
+                Contact: {c.contact} · {c.phone}
+              </div>
+              <div>Address: {c.address || "—"}</div>
+              <div>Tax ID: {c.taxId || "—"}</div>
+              <div>Bank: {c.bankName || "—"}</div>
+              <div>Account no.: {c.bankCode || "—"}</div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {!c.isDefault ? (
                 <TextButton variant="secondary" onClick={() => setDefault(c)}>
-                  设为默认
+                  Set as default
                 </TextButton>
               ) : null}
               <TextButton variant="secondary" onClick={() => openEdit(c)}>
-                编辑
+                Edit
               </TextButton>
               <TextButton variant="secondary" className="border-red-200 text-red-700" onClick={() => remove(c)}>
-                删除
+                Delete
               </TextButton>
             </div>
           </div>
         ))}
       </div>
       {list.length === 0 ? (
-        <p className="mt-6 text-center text-sm text-slate-500">请新增公司主体，用于报价抬头与单号前缀。</p>
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Add a company profile for letterheads and document number prefixes.
+        </p>
       ) : null}
 
       <Modal
         open={modalOpen}
-        title={editing ? "编辑公司" : "新增公司"}
+        title={editing ? "Edit company" : "New company"}
         onClose={() => setModalOpen(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setModalOpen(false)}>
-              取消
+              Cancel
             </TextButton>
             <TextButton variant="primary" onClick={save}>
-              保存
+              Save
             </TextButton>
           </>
         }
       >
         <div className="space-y-3 text-sm">
           <div>
-            <label className="block text-slate-600">公司名称</label>
+            <label className="block text-slate-600">Company name</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.name}
@@ -262,7 +266,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">英文简写（单号前缀）</label>
+            <label className="block text-slate-600">Abbreviation (doc no. prefix)</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.abbr}
@@ -270,7 +274,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">联系人</label>
+            <label className="block text-slate-600">Contact</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.contact}
@@ -278,7 +282,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">电话</label>
+            <label className="block text-slate-600">Phone</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.phone}
@@ -286,7 +290,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">地址</label>
+            <label className="block text-slate-600">Address</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.address}
@@ -294,7 +298,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">税号</label>
+            <label className="block text-slate-600">Tax ID</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.taxId}
@@ -302,7 +306,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">开户行</label>
+            <label className="block text-slate-600">Bank name</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.bankName}
@@ -310,7 +314,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">银行卡号</label>
+            <label className="block text-slate-600">Bank account number</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
               value={form.bankCode}
@@ -318,7 +322,7 @@ function CompanyPageInner() {
             />
           </div>
           <div>
-            <label className="block text-slate-600">Logo 上传</label>
+            <label className="block text-slate-600">Logo upload</label>
             <input type="file" accept="image/*" className="mt-1 w-full text-sm" onChange={onLogoFile} />
             {form.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -326,8 +330,8 @@ function CompanyPageInner() {
             ) : null}
           </div>
           <div>
-            <label className="block text-slate-600">公章（透明 PNG）</label>
-            <p className="mt-0.5 text-xs text-slate-500">用于合同乙方落款处叠放，建议透明底 PNG。</p>
+            <label className="block text-slate-600">Company seal (transparent PNG)</label>
+            <p className="mt-0.5 text-xs text-slate-500">Placed on contract signature blocks; PNG with transparency recommended.</p>
             <input
               type="file"
               accept="image/png,.png"
@@ -349,7 +353,7 @@ function CompanyPageInner() {
               checked={form.isDefault}
               onChange={(e) => setForm((s) => ({ ...s, isDefault: e.target.checked }))}
             />
-            设为默认报价主体
+            Set as default company for quotes
           </label>
         </div>
       </Modal>

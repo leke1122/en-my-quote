@@ -3,7 +3,7 @@ type Bucket = { count: number; resetAt: number };
 const store = new Map<string, Bucket>();
 
 /**
- * 轻量内存限流（Serverless 下为 best-effort），用于降低暴力尝试风险。
+ * Simple in-memory rate limit (best-effort on serverless) to reduce brute force.
  */
 export function rateLimitCheck(
   key: string,

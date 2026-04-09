@@ -22,7 +22,7 @@ type NotifyBody = {
 };
 
 function okResp() {
-  return NextResponse.json({ code: "SUCCESS", message: "成功" }, { status: 200 });
+  return NextResponse.json({ code: "SUCCESS", message: "OK" }, { status: 200 });
 }
 
 function failResp(message: string, status = 400) {
@@ -31,7 +31,7 @@ function failResp(message: string, status = 400) {
 
 export async function POST(request: Request) {
   const prisma = getPrisma();
-  if (!prisma) return okResp(); // 避免重复回调压垮；但这代表未配置 DB 时无法自动激活
+  if (!prisma) return okResp(); // Skip heavy work if DB missing; cannot auto-activate subscription
 
   const wx = getWechatPayClient();
   if (!wx.ok) return okResp();
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
   if (!outTradeNo) return failResp("missing out_trade_no");
 
-  // 仅处理成功状态；其它状态可按需补充（CLOSED/REVOKED/REFUND 等）
+  // Only handle success; extend for CLOSED/REVOKED/REFUND if needed
   if (tradeState !== "SUCCESS") return okResp();
 
   const order = await prisma.paymentOrder.findUnique({ where: { outTradeNo } });

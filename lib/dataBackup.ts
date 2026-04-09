@@ -9,6 +9,7 @@ import type {
   ContractCounters,
 } from "./types";
 import {
+  coerceAppSettings,
   getCompanies,
   getContracts,
   getCustomers,
@@ -38,21 +39,17 @@ export interface DataBackupPayload {
   products: Product[];
   quotes: Quote[];
   quoteCounter: QuoteCounters;
-  /** v2：销售合同 */
+  /** v2: sales contracts */
   contracts: Contract[];
   contractCounter: ContractCounters;
   settings: AppSettings;
 }
 
 function redactSettings(s: AppSettings): AppSettings {
-  return {
-    ...s,
-    wpsAppSecret: "",
-    wpsToken: "",
-  };
+  return { ...s };
 }
 
-/** 从当前 localStorage 汇总备份（仅客户端） */
+/** Collect backup from current localStorage (client only) */
 export function collectLocalDataBackup(includeSecrets: boolean): DataBackupPayload {
   const settings = getSettings();
   return {
@@ -91,21 +88,21 @@ export function parseBackupFile(text: string): { ok: true; data: DataBackupPaylo
   try {
     raw = JSON.parse(text) as unknown;
   } catch {
-    return { ok: false, error: "不是有效的 JSON 文件" };
+    return { ok: false, error: "Not valid JSON" };
   }
-  if (!isRecord(raw)) return { ok: false, error: "根节点必须是对象" };
-  if (raw.app !== "my-quote") return { ok: false, error: "不是本应用导出的备份（缺少 app: my-quote）" };
+  if (!isRecord(raw)) return { ok: false, error: "Root must be an object" };
+  if (raw.app !== "my-quote") return { ok: false, error: "Not a backup from this app (expected app: my-quote)" };
   if (typeof raw.version !== "number" || raw.version < 1) {
-    return { ok: false, error: "不支持的备份版本" };
+    return { ok: false, error: "Unsupported backup version" };
   }
   const needArrays = ["companies", "customers", "products", "quotes"] as const;
   for (const k of needArrays) {
-    if (!Array.isArray(raw[k])) return { ok: false, error: `缺少或格式错误: ${k}` };
+    if (!Array.isArray(raw[k])) return { ok: false, error: `Missing or invalid: ${k}` };
   }
   if (!isRecord(raw.quoteCounter) && raw.quoteCounter !== null) {
-    return { ok: false, error: "quoteCounter 必须是对象" };
+    return { ok: false, error: "quoteCounter must be an object" };
   }
-  if (!isRecord(raw.settings)) return { ok: false, error: "settings 必须是对象" };
+  if (!isRecord(raw.settings)) return { ok: false, error: "settings must be an object" };
 
   const contracts = Array.isArray(raw.contracts) ? (raw.contracts as Contract[]) : [];
   const contractCounter =
@@ -124,12 +121,12 @@ export function parseBackupFile(text: string): { ok: true; data: DataBackupPaylo
     quoteCounter: (raw.quoteCounter as QuoteCounters) ?? {},
     contracts: raw.version >= 2 ? contracts : [],
     contractCounter: raw.version >= 2 ? contractCounter : {},
-    settings: { ...getSettings(), ...(raw.settings as Partial<AppSettings>) },
+    settings: coerceAppSettings(raw.settings),
   };
   return { ok: true, data };
 }
 
-/** 将备份写入 localStorage（覆盖当前数据） */
+/** Write backup into localStorage (overwrites current data) */
 export function applyLocalDataBackup(data: DataBackupPayload): void {
   setCompanies(data.companies);
   setCustomers(data.customers);

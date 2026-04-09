@@ -13,7 +13,7 @@ function addDays(from: Date, days: number): Date {
   return d;
 }
 
-/** 试用、已过期、或尚无订阅：从兑换日起算；有效期内续费：顺延结束日并保持原 validFrom */
+/** Trial/expired/none: start from redeem date; active renew: extend end date, keep validFrom */
 function computeRedeemWindow(
   sub: Subscription | null,
   now: Date,
@@ -47,38 +47,38 @@ function computeRedeemWindow(
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   const rawCookie = cookies().get(COOKIE_NAME)?.value;
   const session = rawCookie ? await verifySessionToken(rawCookie) : null;
   if (!session) {
-    return NextResponse.json({ ok: false, error: "请先登录" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Please sign in first." }, { status: 401 });
   }
 
   let body: { code?: string };
   try {
     body = (await request.json()) as { code?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const code = String(body.code ?? "").trim().toUpperCase();
   if (!code) {
-    return NextResponse.json({ ok: false, error: "请输入激活码" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Enter a redeem code." }, { status: 400 });
   }
 
   const table = parseRedeemCodes();
   if (table.size === 0) {
     return NextResponse.json(
-      { ok: false, error: "服务端未配置可用激活码（SUBSCRIPTION_REDEEM_CODES）" },
+      { ok: false, error: "No redeem codes configured (SUBSCRIPTION_REDEEM_CODES)." },
       { status: 503 }
     );
   }
 
   const reward = table.get(code);
   if (!reward) {
-    return NextResponse.json({ ok: false, error: "激活码无效或已失效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid or expired redeem code." }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     include: { subscription: true },
   });
   if (!user) {
-    return NextResponse.json({ ok: false, error: "用户不存在" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: "User not found." }, { status: 404 });
   }
 
   const sub = user.subscription;

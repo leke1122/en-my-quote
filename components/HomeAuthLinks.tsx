@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatDateYmdCn } from "@/lib/subscriptionPlanDisplay";
+import { formatDateUS } from "@/lib/format";
 
 type MeJson =
   | { ok: true; loggedIn: false; cloud?: boolean }
@@ -19,7 +19,7 @@ type MeJson =
     };
 
 type HomeAuthLinksProps = {
-  /** 首页顶栏：单行紧凑，仅图标/首字母，避免换行 */
+  /** Home top bar: tight single row, icon/initials only */
   compact?: boolean;
 };
 
@@ -52,11 +52,11 @@ export function HomeAuthLinks({ compact = false }: HomeAuthLinksProps) {
     const first = email.trim().charAt(0);
     const avatarText = first ? first.toUpperCase() : "U";
     const sub = "subscription" in me ? me.subscription : null;
-    let expiryLabel = "未激活";
+    let expiryLabel = "Inactive";
     if (sub?.plan === "lifetime") {
-      expiryLabel = "永久版";
+      expiryLabel = "Lifetime";
     } else if (sub?.validUntil) {
-      expiryLabel = `有效期至 ${formatDateYmdCn(sub.validUntil)}`;
+      expiryLabel = `Until ${formatDateUS(sub.validUntil)}`;
     }
 
     return (
@@ -83,7 +83,7 @@ export function HomeAuthLinks({ compact = false }: HomeAuthLinksProps) {
           compact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"
         }`}
       >
-        注册
+        Sign up
       </Link>
       <Link
         href="/login"
@@ -91,7 +91,7 @@ export function HomeAuthLinks({ compact = false }: HomeAuthLinksProps) {
           compact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"
         }`}
       >
-        登录
+        Sign in
       </Link>
     </div>
   );

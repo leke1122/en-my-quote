@@ -1,7 +1,7 @@
 import { isSubscriptionActive } from "@/lib/subscriptionLogic";
 import { describePlan } from "@/lib/subscriptionPlanDisplay";
 
-/** 与 /api/auth/me 中 subscription 字段一致 */
+/** Matches subscription on /api/auth/me */
 export type MeSubscription = {
   plan: string;
   status: string;
@@ -10,14 +10,14 @@ export type MeSubscription = {
   createdAt?: string;
 };
 
-/** 与 Stripe/Webhook 约定的 status 一致：仅 active 且未过期视为有权使用付费功能 */
+/** Stripe/webhook status: only active and not expired counts as entitled */
 export function isEntitlementActive(sub: MeSubscription | null | undefined): boolean {
   if (!sub) return false;
   if (sub.status !== "active") return false;
   return isSubscriptionActive(sub.validUntil ? new Date(sub.validUntil) : null, sub.plan);
 }
 
-/** 剩余天数（按自然日向上取整）；终身或无结束日返回 null */
+/** Days remaining (ceil calendar days); null for lifetime / no end */
 export function daysRemainingInSubscription(
   sub: MeSubscription | null | undefined,
   now = new Date()
@@ -28,7 +28,7 @@ export function daysRemainingInSubscription(
   return Math.ceil((v.getTime() - now.getTime()) / 86_400_000);
 }
 
-/** 在订阅仍有效前提下，是否处于「到期前 N 天」提醒区间（含到期当日） */
+/** True if within N days before expiry while still active (inclusive of end day) */
 export function isExpiringWithinDays(
   sub: MeSubscription | null | undefined,
   entitlementActive: boolean,
@@ -51,7 +51,7 @@ export function canAccessContracts(sub: MeSubscription | null, entitlementActive
   return describePlan(sub.plan).contract;
 }
 
-/** 「从报价生成合同」需同时具备报价与合同权益 */
+/** Quote-to-contract needs both quote and contract entitlements */
 export function canBridgeQuoteToContract(
   sub: MeSubscription | null,
   entitlementActive: boolean

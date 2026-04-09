@@ -1,8 +1,8 @@
 /**
- * 环境变量 SUBSCRIPTION_REDEEM_CODES：逗号分隔多条，每条格式
- * `激活码|有效天数|套餐标识`
- * - 天数为 0 或 lifetime 表示永久（写入 plan=lifetime，validUntil=null）
- * - 激活码比对时不区分大小写
+ * Env SUBSCRIPTION_REDEEM_CODES: comma-separated entries, each
+ * `CODE|days|planKey`
+ * - days 0 or lifetime → perpetual (plan=lifetime, validUntil=null)
+ * - code comparison is case-insensitive
  */
 export type RedeemReward = { plan: string; days: number; lifetime: boolean };
 

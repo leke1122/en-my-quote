@@ -1,6 +1,6 @@
 /**
- * 邮箱验证码注册（需先 POST /api/auth/email/send-code）。
- * 当前注册页已改为直接 POST /api/auth/register；若日后恢复「邮件验证码注册」，前端可再切回本接口。
+ * Email verification registration (requires POST /api/auth/email/send-code first).
+ * The register page currently uses POST /api/auth/register; keep this route for future email-code flows.
  */
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
@@ -15,14 +15,14 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const prisma = getPrisma();
   if (!prisma) {
-    return NextResponse.json({ ok: false, error: "未配置数据库" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Database is not configured." }, { status: 503 });
   }
 
   let body: { email?: string; password?: string; code?: string };
   try {
     body = (await request.json()) as { email?: string; password?: string; code?: string };
   } catch {
-    return NextResponse.json({ ok: false, error: "请求体无效" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
   const email = String(body.email ?? "")
@@ -34,19 +34,19 @@ export async function POST(request: Request) {
   const rl = rateLimitCheck(`register-email:${ip}:${email}`, { max: 12, windowMs: 10 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
-      { ok: false, error: `尝试次数过多，请 ${rl.retryAfterSec} 秒后重试` },
+      { ok: false, error: `Too many attempts. Try again in ${rl.retryAfterSec} seconds.` },
       { status: 429 }
     );
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "邮箱格式不正确" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
   if (password.length < 8) {
-    return NextResponse.json({ ok: false, error: "密码至少 8 位" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Password must be at least 8 characters." }, { status: 400 });
   }
   if (!/^\d{6}$/.test(code)) {
-    return NextResponse.json({ ok: false, error: "请输入 6 位数字验证码" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Enter the 6-digit verification code." }, { status: 400 });
   }
 
   const row = await prisma.emailVerificationCode.findFirst({
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   });
 
   if (!row) {
-    return NextResponse.json({ ok: false, error: "验证码错误或已过期，请重新获取" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Invalid or expired code. Request a new one." }, { status: 400 });
   }
 
   await prisma.emailVerificationCode.deleteMany({ where: { email } });
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
       token = await createSessionToken(user.id, user.email);
     } catch {
       await prisma.user.delete({ where: { id: user.id } });
-      return NextResponse.json({ ok: false, error: "JWT_SECRET 未正确配置" }, { status: 503 });
+      return NextResponse.json({ ok: false, error: "JWT_SECRET is not configured correctly." }, { status: 503 });
     }
 
     cookies().set(COOKIE_NAME, token, {
@@ -108,10 +108,10 @@ export async function POST(request: Request) {
   } catch (e: unknown) {
     const dup = e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002";
     if (dup) {
-      return NextResponse.json({ ok: false, error: "该邮箱已注册" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: "This email is already registered." }, { status: 409 });
     }
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "注册失败" },
+      { ok: false, error: e instanceof Error ? e.message : "Registration failed." },
       { status: 500 }
     );
   }

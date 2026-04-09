@@ -1,16 +1,16 @@
-/** 销售合同默认条款（可增删；与常见网络销售合同及纸质合同样式接近） */
+/** Default sales contract clauses (editable). Replace governing law with your jurisdiction as needed. */
 export const DEFAULT_CONTRACT_CLAUSES: string[] = [
-  "一、合同标的：上表所列产品名称、型号（规格）、单位、数量、单价、金额等为本合同组成部分，双方确认无误。",
-  "二、交货地址：________________（如需供方代办运输，运输费用由需方承担，具体以双方协商为准）。",
-  "三、货物包装：应符合安全运输要求；因包装不当造成的货物损失，供方不承担责任。",
-  "四、风险承担：货物在交付需方或第一承运人之前的风险由供方承担；之后由需方承担。",
-  "五、货物及验收标准：按国家相关标准、行业标准或双方确认的样品/技术文件执行；无上述标准时，按通常适用于合同目的的标准执行。",
-  "六、验收时限：需方应在收货后 7 日内验收；逾期未提出书面异议的，视为验收合格。",
-  "七、货款结算：采用银行转账方式；需方应按约定期限付款，供方在收到全款后按约定发货（或按双方另行约定执行）。",
-  "八、质保：供方对所供产品提供 12 个月质量保修（易耗品除外），自验收合格之日起算；因需方使用、保管不当造成的损坏除外。",
-  "九、争议解决：双方协商解决；协商不成的，可向合同签订地有管辖权的人民法院提起诉讼。",
-  "十、合同生效：本合同一式两份，双方各执一份，自双方签字或盖章之日起生效，具有同等法律效力。",
+  "I. Subject matter: The product names, models (specifications), units, quantities, unit prices, and amounts listed above are part of this agreement and are accepted by both parties.",
+  "II. Delivery location: ________________ (If the supplier arranges carriage, the buyer bears freight unless otherwise agreed.)",
+  "III. Packing: Packing shall be suitable for safe transport; the supplier is not liable for loss due to inadequate packing.",
+  "IV. Risk of loss: Risk passes to the buyer upon delivery to the buyer or the first carrier, unless otherwise agreed.",
+  "V. Quality and acceptance: As per applicable national/industry standards or samples and technical documents agreed by both parties; otherwise, the standard fit for the contract purpose.",
+  "VI. Inspection: The buyer shall inspect within 7 days after receipt; failure to raise a written objection within that period constitutes acceptance.",
+  "VII. Payment: By bank transfer as scheduled; the supplier ships after receiving payment in full unless otherwise agreed.",
+  "VIII. Warranty: The supplier warrants the products for 12 months from acceptance (except consumables); exclusions apply for misuse or improper storage by the buyer.",
+  "IX. Disputes: The parties shall seek amicable resolution; if that fails, either party may bring suit in a court of competent jurisdiction at the place of signing (replace with your governing law and venue).",
+  "X. Effectiveness: This agreement is executed in two counterparts, one for each party, and becomes effective upon signature or seal by both parties.",
 ];
 
 export const CONTRACT_INTRO =
-  "依据《中华人民共和国民法典》及相关法律、法规，经双方友好协商，本着平等、自愿、公平和诚实信用原则，就下列产品买卖事宜达成一致，订立本合同。";
+  "By mutual agreement and in accordance with applicable law, the parties enter into this sales contract in good faith on equal terms regarding the products described below.";

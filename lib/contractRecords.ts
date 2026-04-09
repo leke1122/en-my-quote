@@ -1,10 +1,12 @@
+import { normalizeDocumentCurrency } from "./format";
+import { getSettings } from "./storage";
 import type { Company, Contract, Customer } from "./types";
 
-/** 合同明细行（与报价明细列表结构对应，便于同一套筛选与表格） */
+/** Contract line row (parallel to quote detail rows for shared filters/tables) */
 export interface ContractDetailRow {
   source: "local";
   contractNo: string;
-  /** 签订日期 YYYY-MM-DD */
+  /** Signing date YYYY-MM-DD */
   date: string;
   customerName: string;
   supplierName: string;
@@ -16,6 +18,7 @@ export interface ContractDetailRow {
   price: number;
   amount: number;
   contractId: string;
+  currency: string;
 }
 
 function splitModelSpec(modelSpec: string): { model: string; spec: string } {
@@ -31,10 +34,12 @@ export function localContractsToDetailRows(
   customerMap: Map<string, Customer>,
   companyMap: Map<string, Company>
 ): ContractDetailRow[] {
+  const defaultCur = normalizeDocumentCurrency(getSettings().documentCurrency);
   const rows: ContractDetailRow[] = [];
   for (const c of contracts) {
     const customerName = customerMap.get(c.customerId)?.name ?? c.buyer.name ?? "—";
     const supplierName = companyMap.get(c.companyId)?.name ?? c.seller.name ?? "—";
+    const cur = normalizeDocumentCurrency(c.currency ?? defaultCur);
     if (!c.lines.length) {
       rows.push({
         source: "local",
@@ -50,6 +55,7 @@ export function localContractsToDetailRows(
         price: 0,
         amount: 0,
         contractId: c.id,
+        currency: cur,
       });
       continue;
     }
@@ -69,6 +75,7 @@ export function localContractsToDetailRows(
         price: line.price,
         amount: line.amount,
         contractId: c.id,
+        currency: cur,
       });
     }
   }

@@ -8,116 +8,116 @@ export type ReleaseNoteItem = {
 
 export const APP_VERSION = pkg.version;
 
-/** 版本说明页最多展示的更新条数（不含更早历史，如需归档可单独保留文档）。 */
+/** Max release notes shown on the page (older entries may remain in code). */
 export const RELEASE_NOTES_DISPLAY_LIMIT = 8;
 
 /**
- * 版本说明（简单可读）
- * 维护方式：每次发布后在数组首项追加一条即可；超过 8 条时旧记录仍在代码里但不会出现在页面。
+ * Release notes (human-readable).
+ * Prepend a new item on each release; entries beyond the display limit stay in code but not on the page.
  */
 export const RELEASE_NOTES: ReleaseNoteItem[] = [
   {
     version: "0.2.2",
     datetime: "2026-04-08 21:10",
     summary: [
-      "新增微信 Native 扫码支付开通闭环：生成付款二维码 → 回调验签/解密 → 订单落库 → 订阅按“顺延规则”自动激活/续费。",
-      "新增支付订单表 PaymentOrder，并提供订单状态查询接口，便于前端轮询展示支付结果。",
+      "WeChat Native QR checkout: generate payment code, verify callback, persist orders, subscriptions extend automatically per rollover rules.",
+      "Added PaymentOrder storage and an order status API for polling payment results.",
     ],
   },
   {
     version: "0.2.1",
     datetime: "2026-04-10 19:50",
     summary: [
-      "品牌升级为「擎签云·商业报价合同系统」；首页与公开页按移动端优先重做视觉层次，统一卡片质感与渐变风格。",
-      "接入品牌 Logo（public/brand-logo.svg），并在首页首屏与公开页面入口统一展示。",
+      "Rebrand with mobile-first home and public pages, unified card styling and gradients.",
+      "Brand logo at public/brand-logo.svg on home and public entry points.",
     ],
   },
   {
     version: "0.2.0",
     datetime: "2026-04-10 19:10",
     summary: [
-      "补齐站点收录基础：新增 robots 与 sitemap，并完善全站 metadata（title/description/canonical/open graph）。",
-      "新增公开可索引内容页（价格说明、常见问题、模板说明），首页信息结构优化并增加公开导航入口。",
+      "SEO basics: robots, sitemap, and richer site metadata (title, description, canonical, Open Graph).",
+      "New public pages (pricing, FAQ, templates); clearer home structure and navigation.",
     ],
   },
   {
     version: "0.1.9",
     datetime: "2026-04-10 18:10",
     summary: [
-      "登录体验优化：支持携带 redirect 参数，登录成功后自动返回来源页面。",
-      "安全加固：/settings 新增服务端路由守卫；登录、验证码注册、重置密码接口增加基础限流，降低暴力尝试风险。",
+      "Sign-in supports a redirect parameter to return users after login.",
+      "Security: server guard on /settings; basic rate limits on login, email-code registration, and password reset.",
     ],
   },
   {
     version: "0.1.8",
     datetime: "2026-04-10 01:30",
     summary: [
-      "接入腾讯云邮件验证码流程：注册页支持发送邮箱验证码并完成验证码注册。",
-      "新增“忘记密码”功能：发送邮箱验证码后可重置密码（验证码 10 分钟有效；同一邮箱 60 秒内仅允许发送一次）。",
+      "Email verification codes via Tencent Cloud mail for registration.",
+      "Forgot password: reset with email code (10-minute validity; 60-second resend throttle per inbox).",
     ],
   },
   {
     version: "0.1.7",
     datetime: "2026-04-10 00:10",
     summary: [
-      "报价导出图片/PDF：单元格留白加大，文字不再贴边；对“整列为空”的列自动收窄，并把空间优先让给名称/规格/备注等内容列，整体更美观。",
+      "Quote image/PDF export: more cell padding; columns that are entirely empty shrink; priority width for name, specs, and notes.",
     ],
   },
   {
     version: "0.1.6",
     datetime: "2026-04-09 23:10",
     summary: [
-      "优化报价/合同导出明细表美观度：标题与内容单元格统一垂直居中，增加上下左右内边距，避免文字贴边与视觉下沉。",
-      "导出时按明细行数与文本长度动态调整列宽与紧凑级别：压缩单位/数量/单价/金额列，把更多宽度让给名称、规格与备注列，减少串行和跨格遮挡。",
+      "Quote/contract export tables: vertically centered headers and cells with consistent padding.",
+      "Dynamic column widths from row count and text length: tighter unit/qty/price/amount columns, more room for name, specs, and notes.",
     ],
   },
   {
     version: "0.1.5",
     datetime: "2026-04-09 22:30",
     summary: [
-      "修复报价单/合同导出图片与 PDF 在内容较多时出现串行、溢出、遮挡的问题：导出按 A4 固定版心并启用自适应紧凑布局（依据明细行数与文本长度自动降低字号和内边距）。",
-      "报价与合同导出的明细表统一居中、自动换行与断词策略，降低长型号/备注导致的错位风险。",
+      "Fixed dense export overflow: A4-based adaptive compact layout from row count and text length (font and padding).",
+      "Centered tables with wrap and word-break to reduce misalignment from long model numbers or notes.",
     ],
   },
   {
     version: "0.1.4",
     datetime: "2026-04-09 18:30",
     summary: [
-      "合同导出/分享预览：公章按上传图比例与 A4 版心计算占位，并以原色叠印（与是否勾选「导出为彩色」无关）；修复部分手机 WebView 下章过小或呈灰阶的问题。",
-      "报价单与合同的桌面明细表单元格改为水平居中（含导出截图样式）。",
+      "Contract export/share preview: seal scales to A4 and composites in color (independent of “export in color”); fixes tiny or grayscale seals in some mobile WebViews.",
+      "Desktop line-item tables use horizontal centering in exports.",
     ],
   },
   {
     version: "0.1.3",
     datetime: "2026-04-09 12:00",
     summary: [
-      "商品管理列表增加「历史报价单价」「历史合同单价」：根据已保存的报价单明细与合同标的明细，汇总每个商品的最低与最高成交单价（仅统计大于 0 的单价；报价行优先按商品 ID 匹配，否则按商品编码；合同行按商品编码匹配）。",
+      "Product list shows historical quote and contract unit-price ranges from saved line items (positive prices only; quote rows match by product id then code; contract rows by code).",
     ],
   },
   {
     version: "0.1.2",
     datetime: "2026-04-08 16:45",
     summary: [
-      "分享报价/分享合同时会说明：因图片占用大，分享为不带商品图片的文字与金额版；链接里自动去掉行内图片，减少「数据过大」报错。",
-      "新建报价里供方下拉里不再显示「· 默认」字样。",
-      "报价与合同都支持「保存为默认条款」，下次新建时自动带入上次保存的条款。",
-      "新建合同时不再自动带出多段预置条款，需要时自行添加即可。",
+      "Share links strip inline product images to keep payloads small and avoid “data too large” errors.",
+      "Supplier dropdown no longer shows a “· default” suffix.",
+      "Save default clauses for quotes and contracts; new documents inherit the last saved terms.",
+      "New contracts no longer preload long boilerplate clauses.",
     ],
   },
   {
     version: "0.1.1",
     datetime: "2026-04-07 23:30",
     summary: [
-      "首页新增“版本说明”入口，方便查看更新。",
-      "帮助页新增手机端截图展示区，点击图片可放大查看。",
-      "“银行行号”统一改为“银行卡号”，避免用户理解歧义。",
-      "报价、合同、商品、客户、我司信息在登录云端账号后会同步到数据库。",
-      "商品图片上传增加压缩处理，减少因图片过大导致保存失败的问题。",
+      "Home links to release notes.",
+      "Help page adds mobile screenshots with tap-to-zoom.",
+      "Clarified bank labels to “bank account number” where it applied.",
+      "Quotes, contracts, products, customers, and company profiles sync to the database when signed in with cloud.",
+      "Product images are compressed on upload to reduce save failures from oversized files.",
     ],
   },
 ];
 
-/** 用于页面展示：仅最近若干条。 */
+/** Recent entries for the release notes page. */
 export function getRecentReleaseNotes(): ReleaseNoteItem[] {
   return RELEASE_NOTES.slice(0, RELEASE_NOTES_DISPLAY_LIMIT);
 }

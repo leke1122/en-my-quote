@@ -5,9 +5,9 @@ import { getPrisma } from "@/lib/prisma";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/sessionJwt";
 
 /**
- * 设置页路由级守卫：
- * - 云端账号启用时，未登录直接重定向到登录页（携带返回地址）
- * - 仅本地模式下不拦截，保留本地设置能力
+ * Settings layout guard:
+ * - With cloud auth, redirect anonymous users to login (return URL)
+ * - Local-only mode does not block
  */
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
   const cloudAuthEnabled = Boolean(

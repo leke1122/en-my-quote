@@ -48,7 +48,7 @@ export default function WechatPayPage() {
     setQrDataUrl(null);
 
     if (!sku) {
-      setError("请选择一个套餐");
+      setError("Please select a plan.");
       return;
     }
 
@@ -71,7 +71,7 @@ export default function WechatPayPage() {
       setQrDataUrl(url);
       setStatus("pending");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "下单失败");
+      setError(e instanceof Error ? e.message : "Could not create order.");
     } finally {
       setCreating(false);
     }
@@ -108,16 +108,16 @@ export default function WechatPayPage() {
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 py-6">
       <PageHeader
-        title="微信扫码支付开通"
+        title="WeChat Pay (QR)"
         actions={
           <TextButton variant="secondary" onClick={() => router.push("/settings")}>
-            返回设置
+            Back to settings
           </TextButton>
         }
       />
 
       <section className="surface-card mb-6 p-4">
-        <h2 className="mb-2 text-base font-semibold text-slate-900">选择套餐</h2>
+        <h2 className="mb-2 text-base font-semibold text-slate-900">Choose a plan</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {skuOptions.map((x) => (
             <button
@@ -139,38 +139,39 @@ export default function WechatPayPage() {
 
         <div className="mt-4 flex items-center gap-3">
           <TextButton variant="primary" disabled={creating} onClick={() => void createOrder()}>
-            {creating ? "下单中…" : "生成付款二维码"}
+            {creating ? "Creating order…" : "Generate payment QR"}
           </TextButton>
           {selected ? (
             <span className="text-sm text-slate-600">
-              已选：<span className="font-medium text-slate-900">{selected.title}</span>
+              Selected: <span className="font-medium text-slate-900">{selected.title}</span>
             </span>
           ) : null}
         </div>
 
         <p className="mt-3 text-sm text-slate-600">
-          激活规则：<span className="font-medium text-slate-900">顺延</span>（有效期内续费会在到期日基础上顺延）。
+          Billing: subscriptions <span className="font-medium text-slate-900">extend from your current end date</span>{" "}
+          when you renew while still active.
         </p>
       </section>
 
       <section className="surface-card p-4">
-        <h2 className="mb-2 text-base font-semibold text-slate-900">扫码支付</h2>
+        <h2 className="mb-2 text-base font-semibold text-slate-900">Scan to pay</h2>
 
         {error ? <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
         {qrDataUrl ? (
           <div className="flex flex-col items-center gap-3">
-            <img src={qrDataUrl} alt="微信支付二维码" className="h-auto w-[220px] rounded-xl border border-slate-200 bg-white p-2" />
+            <img src={qrDataUrl} alt="WeChat Pay QR code" className="h-auto w-[220px] rounded-xl border border-slate-200 bg-white p-2" />
             <div className="text-center text-sm text-slate-700">
               {status === "paid" ? (
-                <div className="font-medium text-emerald-700">支付成功，订阅已自动顺延激活</div>
+                <div className="font-medium text-emerald-700">Payment received—subscription extended</div>
               ) : (
-                <div>请使用微信扫码完成支付（支付成功后会自动刷新状态）</div>
+                <div>Scan with WeChat to pay. This page updates when payment completes.</div>
               )}
             </div>
             {outTradeNo ? (
               <div className="text-xs text-slate-500">
-                订单号：<span className="font-mono">{outTradeNo}</span>
+                Order no.: <span className="font-mono">{outTradeNo}</span>
               </div>
             ) : null}
             {codeUrl ? (
@@ -181,12 +182,12 @@ export default function WechatPayPage() {
 
             {status === "paid" ? (
               <TextButton variant="primary" onClick={() => router.push("/settings")}>
-                返回设置查看订阅
+                Back to settings
               </TextButton>
             ) : null}
           </div>
         ) : (
-          <p className="text-sm text-slate-600">点击上方「生成付款二维码」后，这里会显示二维码。</p>
+          <p className="text-sm text-slate-600">After you tap Generate payment QR, the code appears here.</p>
         )}
       </section>
     </div>

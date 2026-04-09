@@ -14,7 +14,7 @@ export function PageHeader({ title, actions }: PageHeaderProps) {
           href="/"
           className="text-sm text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
         >
-          返回首页
+          Back to home
         </Link>
         <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{title}</h1>
       </div>

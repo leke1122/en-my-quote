@@ -1,4 +1,4 @@
-/** 合同导出：克隆内测量公章位置；整页灰度后再叠回原色公章（或强制重绘以保证原色） */
+/** Contract export: measure seal in clone; grayscale page then composite seal in color */
 
 export type ContractSealRect = {
   x: number;
@@ -8,11 +8,11 @@ export type ContractSealRect = {
 };
 
 let lastSealRects: ContractSealRect[] = [];
-/** 与 html2canvas scale 相乘前，克隆根在 CSS 布局下的宽度（px） */
+/** Clone root width in CSS px before multiplying by html2canvas scale */
 export let lastContractExportRootWidth = 1;
 
 const MIN_LAYOUT_PX = 16;
-/** A4 上公章最大边（mm），略大于实物常见直径便于辨认 */
+/** Max seal edge on A4 (mm), slightly larger than typical physical seal */
 const SEAL_MAX_SIDE_MM = 52;
 
 function mmToCssPx(mm: number): number {
@@ -67,9 +67,7 @@ function measureSealInClone(img: HTMLImageElement, root: HTMLElement): ContractS
   return { x, y, w, h };
 }
 
-/**
- * 在 onclone 末尾调用：克隆已套用导出样式并完成 DOM 调整后测量。
- */
+/** Call at end of onclone after export styles are applied */
 export function finalizeContractExportLayoutFromClone(clonedDoc: Document): void {
   const root = clonedDoc.getElementById("contract-print");
   if (!root) return;
@@ -85,7 +83,7 @@ export function finalizeContractExportLayoutFromClone(clonedDoc: Document): void
   });
 }
 
-/** 报价单导出：与合同相同测量逻辑，根节点为 `#quote-print` */
+/** Quote export: same measurement, root `#quote-print` */
 export function finalizeQuoteExportLayoutFromClone(clonedDoc: Document): void {
   const root = clonedDoc.getElementById("quote-print");
   if (!root) return;
@@ -128,8 +126,8 @@ function exportCanvasLayoutScale(
 }
 
 /**
- * 用解码后的位图叠到 canvas 上，保证公章为上传原色（不受整页灰度影响）。
- * 彩色导出也会执行一次，避免部分 WebView 把章渲成灰阶。
+ * Draw decoded seal bitmaps on canvas in original color after page grayscale.
+ * Also run for color exports so some WebViews do not flatten seals to gray.
  */
 export async function compositeSealsInColorOnCanvasAsync(
   canvas: HTMLCanvasElement,
@@ -155,7 +153,7 @@ export async function compositeSealsInColorOnCanvasAsync(
     try {
       ctx.drawImage(loaded, x, y, w, h);
     } catch {
-      /* 跨域等 */
+      /* CORS / tainted canvas */
     }
   }
 }

@@ -15,10 +15,11 @@ import { SubscriptionFeatureGate } from "@/components/subscription/SubscriptionF
 import { useSubscriptionAccess } from "@/components/subscription/SubscriptionProvider";
 import { TextButton } from "@/components/TextButton";
 import { pullProjectDataFromCloud } from "@/lib/cloudProjectData";
-import { formatCurrency } from "@/lib/format";
-import { getCustomers, getQuotes } from "@/lib/storage";
+import { formatMoney } from "@/lib/format";
+import { filterDetailRows, localQuotesToDetailRows } from "@/lib/quoteDetailRows";
+import { quoteDisplayStatus, shouldShowExpiryReminder } from "@/lib/quoteStatus";
+import { getCustomers, getQuotes, markQuoteReminderSent } from "@/lib/storage";
 import type { Customer, Quote } from "@/lib/types";
-import { filterDetailRows, localQuotesToDetailRows } from "@/lib/wpsRecords";
 
 function QuoteListContent() {
   const router = useRouter();
@@ -33,6 +34,14 @@ function QuoteListContent() {
   const [productQ, setProductQ] = useState("");
   const [modelQ, setModelQ] = useState("");
   const [specQ, setSpecQ] = useState("");
+  const [statusQ, setStatusQ] = useState<
+    "all" | "draft" | "sent" | "viewed" | "accepted" | "expired" | "paid"
+  >("all");
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderQuoteId, setReminderQuoteId] = useState("");
+  const [reminderTo, setReminderTo] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
+  const [reminderSending, setReminderSending] = useState(false);
 
   const refreshList = useCallback(async () => {
     if (subCtx.cloudAuthEnabled && subCtx.loggedIn) {
@@ -68,15 +77,35 @@ function QuoteListContent() {
         productName: productQ,
         model: modelQ,
         spec: specQ,
+        status: statusQ,
         source: "all",
       }),
-    [localDetailRows, dateFrom, dateTo, customerQ, productQ, modelQ, specQ]
+    [localDetailRows, dateFrom, dateTo, customerQ, productQ, modelQ, specQ, statusQ]
   );
+
+  const expiryReminders = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const plus3 = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return quotes
+      .filter((q) => shouldShowExpiryReminder(q.status, q.validUntil))
+      .filter((q) => {
+        if (!q.validUntil) return false;
+        const s = quoteDisplayStatus(q.status, q.validUntil);
+        return s === "expired" || (q.validUntil >= today && q.validUntil <= plus3);
+      })
+      .sort((a, b) => (a.validUntil ?? "").localeCompare(b.validUntil ?? ""))
+      .slice(0, 8);
+  }, [quotes]);
 
   function quoteRowsForExport(): (string | number)[][] {
     return filteredRows.map((r) => [
       r.quoteNo,
       r.date,
+      r.currency,
+      r.status,
+      r.validUntil,
+      r.paymentTerms,
+      r.paymentLink,
       r.customerName,
       r.productName,
       r.model,
@@ -90,42 +119,52 @@ function QuoteListContent() {
 
   function exportQuoteCsv() {
     if (filteredRows.length === 0) {
-      alert("当前没有可导出的明细，请调整筛选条件。");
+      alert("Nothing to export with the current filters.");
       return;
     }
     const headers = [
-      "报价单号",
-      "日期",
-      "客户",
-      "商品名称",
-      "型号",
-      "规格",
-      "单位",
-      "数量",
-      "单价",
-      "金额",
+      "Quote No.",
+      "Date",
+      "Currency",
+      "Status",
+      "Valid until",
+      "Payment terms",
+      "Payment link",
+      "Customer",
+      "Item",
+      "Model",
+      "Spec",
+      "Unit",
+      "Qty",
+      "Unit price",
+      "Amount",
     ];
-    triggerDownloadBlob(buildCsvUtf8BomBlob(headers, quoteRowsForExport()), exportFilename("报价明细", "csv"));
+    triggerDownloadBlob(buildCsvUtf8BomBlob(headers, quoteRowsForExport()), exportFilename("quote-lines", "csv"));
   }
 
   function exportQuoteXls() {
     if (filteredRows.length === 0) {
-      alert("当前没有可导出的明细，请调整筛选条件。");
+      alert("Nothing to export with the current filters.");
       return;
     }
     const headers = [
-      "报价单号",
-      "日期",
-      "客户",
-      "商品名称",
-      "型号",
-      "规格",
-      "单位",
-      "数量",
-      "单价",
-      "金额",
+      "Quote No.",
+      "Date",
+      "Currency",
+      "Status",
+      "Valid until",
+      "Payment terms",
+      "Payment link",
+      "Customer",
+      "Item",
+      "Model",
+      "Spec",
+      "Unit",
+      "Qty",
+      "Unit price",
+      "Amount",
     ];
-    triggerDownloadBlob(buildExcelHtmlTableBlob(headers, quoteRowsForExport()), exportFilename("报价明细", "xls"));
+    triggerDownloadBlob(buildExcelHtmlTableBlob(headers, quoteRowsForExport()), exportFilename("quote-lines", "xls"));
   }
 
   function goContractFromQuote(quoteId: string) {
@@ -136,58 +175,132 @@ function QuoteListContent() {
     router.push(`/contract/new?fromQuote=${encodeURIComponent(quoteId)}`);
   }
 
-  function openShop() {
-    window.open(subCtx.purchaseShopUrl, "_blank", "noopener,noreferrer");
+  function openReminderModal(quoteId: string) {
+    setReminderQuoteId(quoteId);
+    setReminderTo("");
+    setReminderMessage("Friendly reminder: please review and complete payment if you would like us to start.");
+    setReminderOpen(true);
+  }
+
+  async function submitReminderEmail() {
+    const q = quotes.find((x) => x.id === reminderQuoteId);
+    if (!q) return;
+    if (!reminderTo.trim()) {
+      alert("Please enter recipient email.");
+      return;
+    }
+    const customerName = customers.find((c) => c.id === q.customerId)?.name ?? "";
+    setReminderSending(true);
+    const res = await fetch("/api/quote/reminder/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: reminderTo.trim(),
+        quoteNo: q.quoteNo,
+        customerName,
+        validUntil: q.validUntil,
+        paymentLink: q.paymentLink,
+        customMessage: reminderMessage.trim(),
+      }),
+    });
+    const data = (await res.json()) as { ok?: boolean; error?: string };
+    setReminderSending(false);
+    if (!res.ok || !data.ok) {
+      alert(data.error || "Could not send reminder email.");
+      return;
+    }
+    markQuoteReminderSent(q.id, reminderTo.trim());
+    setQuotes(getQuotes().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    setReminderOpen(false);
+    alert("Reminder email sent.");
   }
 
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6">
       <PageHeader
-        title="查询历史报价"
+        title="My quotations"
         actions={
           <div className="flex flex-wrap gap-2">
             <TextButton variant="secondary" onClick={refreshList}>
-              {cloudDataMode ? "刷新列表" : "刷新本地"}
+              {cloudDataMode ? "Refresh" : "Refresh local"}
             </TextButton>
             <Link href="/quote/new">
-              <TextButton variant="primary">新建报价</TextButton>
+              <TextButton variant="primary">New quotation</TextButton>
             </Link>
           </div>
         }
       />
 
       <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-        <p className="mb-2 font-medium text-slate-800">数据与安全说明</p>
+        <p className="mb-2 font-medium text-slate-800">Data & security</p>
         {cloudDataMode ? (
           <p className="leading-relaxed">
-            已启用服务端数据库，用于账号、订阅及业务数据的持久化。本页明细来自<strong>当前浏览器中已载入</strong>的报价；在编辑器保存或通过云端同步更新后，请点击上方「刷新列表」查看最新数据。请始终通过{" "}
-            <strong>HTTPS</strong> 访问。可在「设置」导出 JSON 备份。
+            Cloud mode uses a server database for account, subscription, and synced data. This list shows quotes
+            <strong> loaded in this browser</strong>. After saving in the editor or syncing, tap <strong>Refresh</strong>
+            . Always use <strong>HTTPS</strong>. You can export a JSON backup in Settings.
           </p>
         ) : (
           <p className="leading-relaxed">
-            <strong>报价明细保存在本机浏览器</strong>。请通过 HTTPS 访问；建议定期在「设置」导出 JSON 备份。
+            <strong>Quotation data is stored in this browser only</strong>. Use HTTPS; export JSON backups regularly from
+            Settings.
           </p>
         )}
         <p className="mt-2 text-xs text-slate-500">
-          下方为<strong>当前筛选条件下</strong>的明细，可导出 CSV 或 Excel（.xls）。在表格「操作」中可打开整单编辑或生成合同。
+          The table below reflects <strong>current filters</strong>. Export CSV or Excel. Use <strong>Actions</strong> to
+          edit the full quote or create a contract.
         </p>
       </section>
 
+      {expiryReminders.length > 0 ? (
+        <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-sm text-slate-700">
+          <p className="mb-2 font-medium text-amber-900">Expiry reminders (next 3 days + expired)</p>
+          <div className="space-y-1.5">
+            {expiryReminders.map((q) => (
+              <div key={q.id} className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{q.quoteNo}</span>
+                <span>· {customerMap.get(q.customerId)?.name ?? "—"}</span>
+                <span>· valid until {q.validUntil || "—"}</span>
+                <span className="rounded bg-white px-2 py-0.5 text-xs uppercase">
+                  {quoteDisplayStatus(q.status, q.validUntil)}
+                </span>
+                <TextButton
+                  variant="ghost"
+                  className="!px-0"
+                  onClick={() => router.push(`/quote/new?id=${encodeURIComponent(q.id)}`)}
+                >
+                  Open
+                </TextButton>
+                <TextButton
+                  variant="ghost"
+                  className="!px-0"
+                  onClick={() => openReminderModal(q.id)}
+                >
+                  Send email
+                </TextButton>
+                <span className="text-xs text-slate-500">
+                  sent {q.reminderCount ?? 0} · last {q.lastReminderAt ? new Date(q.lastReminderAt).toLocaleString() : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="mb-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-sm font-semibold text-slate-800">组合筛选</h2>
+          <h2 className="text-sm font-semibold text-slate-800">Filters</h2>
           <div className="flex flex-wrap gap-2">
             <TextButton variant="secondary" onClick={exportQuoteCsv}>
-              导出 CSV（当前明细）
+              Export CSV
             </TextButton>
             <TextButton variant="secondary" onClick={exportQuoteXls}>
-              导出 Excel .xls（当前明细）
+              Export Excel (.xls)
             </TextButton>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="block text-xs text-slate-600">报价日期起</label>
+            <label className="block text-xs text-slate-600">Quote date from</label>
             <input
               type="date"
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
@@ -196,7 +309,7 @@ function QuoteListContent() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-600">报价日期止</label>
+            <label className="block text-xs text-slate-600">Quote date to</label>
             <input
               type="date"
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
@@ -205,40 +318,61 @@ function QuoteListContent() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-600">客户名称（包含）</label>
+            <label className="block text-xs text-slate-600">Customer (contains)</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
               value={customerQ}
               onChange={(e) => setCustomerQ(e.target.value)}
-              placeholder="模糊匹配"
+              placeholder="Partial match"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-600">商品名称（包含）</label>
+            <label className="block text-xs text-slate-600">Item name (contains)</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
               value={productQ}
               onChange={(e) => setProductQ(e.target.value)}
-              placeholder="模糊匹配"
+              placeholder="Partial match"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-600">型号（包含）</label>
+            <label className="block text-xs text-slate-600">Model (contains)</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
               value={modelQ}
               onChange={(e) => setModelQ(e.target.value)}
-              placeholder="模糊匹配"
+              placeholder="Partial match"
             />
           </div>
           <div className="sm:col-span-2 lg:col-span-3">
-            <label className="block text-xs text-slate-600">规格（包含）</label>
+            <label className="block text-xs text-slate-600">Spec (contains)</label>
             <input
               className="mt-1 w-full max-w-xl rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
               value={specQ}
               onChange={(e) => setSpecQ(e.target.value)}
-              placeholder="模糊匹配"
+              placeholder="Partial match"
             />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600">Status</label>
+            <select
+              className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              value={statusQ}
+              onChange={(e) =>
+                setStatusQ(
+                  (e.target.value as "all" | "draft" | "sent" | "viewed" | "accepted" | "expired" | "paid") ||
+                    "all"
+                )
+              }
+            >
+              <option value="all">All</option>
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="viewed">Viewed</option>
+              <option value="accepted">Accepted</option>
+              <option value="expired">Expired</option>
+              <option value="paid">Paid</option>
+            </select>
           </div>
         </div>
       </section>
@@ -247,17 +381,22 @@ function QuoteListContent() {
         <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="px-2 py-2 font-medium">报价单号</th>
-              <th className="px-2 py-2 font-medium">日期</th>
-              <th className="px-2 py-2 font-medium">客户</th>
-              <th className="px-2 py-2 font-medium">商品名称</th>
-              <th className="px-2 py-2 font-medium">型号</th>
-              <th className="px-2 py-2 font-medium">规格</th>
-              <th className="px-2 py-2 font-medium">单位</th>
-              <th className="px-2 py-2 font-medium">数量</th>
-              <th className="px-2 py-2 font-medium">单价</th>
-              <th className="px-2 py-2 font-medium">金额</th>
-              <th className="px-2 py-2 font-medium">操作</th>
+              <th className="px-2 py-2 font-medium">Quote No.</th>
+              <th className="px-2 py-2 font-medium">Date</th>
+              <th className="px-2 py-2 font-medium">Currency</th>
+              <th className="px-2 py-2 font-medium">Status</th>
+              <th className="px-2 py-2 font-medium">Valid until</th>
+              <th className="px-2 py-2 font-medium">Payment terms</th>
+              <th className="px-2 py-2 font-medium">Payment</th>
+              <th className="px-2 py-2 font-medium">Customer</th>
+              <th className="px-2 py-2 font-medium">Item</th>
+              <th className="px-2 py-2 font-medium">Model</th>
+              <th className="px-2 py-2 font-medium">Spec</th>
+              <th className="px-2 py-2 font-medium">Unit</th>
+              <th className="px-2 py-2 font-medium">Qty</th>
+              <th className="px-2 py-2 font-medium">Unit price</th>
+              <th className="px-2 py-2 font-medium">Amount</th>
+              <th className="px-2 py-2 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -265,14 +404,27 @@ function QuoteListContent() {
               <tr key={`${r.quoteId ?? r.quoteNo}-${idx}`} className="border-t border-slate-100">
                 <td className="px-2 py-2">{r.quoteNo}</td>
                 <td className="px-2 py-2">{r.date}</td>
+                <td className="px-2 py-2">{r.currency}</td>
+                <td className="px-2 py-2">{r.status}</td>
+                <td className="px-2 py-2">{r.validUntil || "—"}</td>
+                <td className="px-2 py-2">{r.paymentTerms || "—"}</td>
+                <td className="px-2 py-2">
+                  {r.paymentLink ? (
+                    <a href={r.paymentLink} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                      Link
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-2 py-2">{r.customerName}</td>
                 <td className="px-2 py-2">{r.productName}</td>
                 <td className="px-2 py-2">{r.model}</td>
                 <td className="px-2 py-2">{r.spec}</td>
                 <td className="px-2 py-2">{r.unit}</td>
                 <td className="px-2 py-2">{r.qty}</td>
-                <td className="px-2 py-2">{formatCurrency(r.price)}</td>
-                <td className="px-2 py-2">{formatCurrency(r.amount)}</td>
+                <td className="px-2 py-2">{formatMoney(r.price, r.currency)}</td>
+                <td className="px-2 py-2">{formatMoney(r.amount, r.currency)}</td>
                 <td className="px-2 py-2">
                   {r.quoteId ? (
                     <span className="flex flex-wrap gap-2">
@@ -281,14 +433,14 @@ function QuoteListContent() {
                         className="!px-0"
                         onClick={() => router.push(`/quote/new?id=${encodeURIComponent(r.quoteId!)}`)}
                       >
-                        打开
+                        Open
                       </TextButton>
                       <TextButton
                         variant="ghost"
                         className="!px-0"
                         onClick={() => goContractFromQuote(r.quoteId!)}
                       >
-                        生成合同
+                        To contract
                       </TextButton>
                     </span>
                   ) : (
@@ -301,7 +453,7 @@ function QuoteListContent() {
         </table>
         {filteredRows.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-slate-500">
-            无明细记录，请调整筛选或点击「{cloudDataMode ? "刷新列表" : "刷新本地"}」
+            No rows — adjust filters or tap {cloudDataMode ? "Refresh" : "Refresh local"}
           </p>
         ) : null}
       </div>
@@ -316,13 +468,27 @@ function QuoteListContent() {
               <span>{r.date}</span>
             </div>
             <div className="font-medium text-slate-900">{r.quoteNo}</div>
+            <div className="text-slate-600">Currency: {r.currency}</div>
+            <div className="text-slate-600">Status: {r.status}</div>
+            <div className="text-slate-600">Valid until: {r.validUntil || "—"}</div>
+            <div className="text-slate-600">Payment terms: {r.paymentTerms || "—"}</div>
+            <div className="text-slate-600">
+              Payment:{" "}
+              {r.paymentLink ? (
+                <a href={r.paymentLink} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                  Open link
+                </a>
+              ) : (
+                "—"
+              )}
+            </div>
             <div className="text-slate-700">{r.customerName}</div>
             <div className="mt-1 text-slate-800">{r.productName}</div>
             <div className="text-slate-600">
               {r.model} · {r.spec}
             </div>
             <div className="mt-1 text-slate-700">
-              {r.unit} × {r.qty} @ {formatCurrency(r.price)} = {formatCurrency(r.amount)}
+              {r.unit} × {r.qty} @ {formatMoney(r.price, r.currency)} = {formatMoney(r.amount, r.currency)}
             </div>
             {r.quoteId ? (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -330,40 +496,80 @@ function QuoteListContent() {
                   variant="secondary"
                   onClick={() => router.push(`/quote/new?id=${encodeURIComponent(r.quoteId!)}`)}
                 >
-                  打开报价
+                  Open quote
                 </TextButton>
                 <TextButton variant="secondary" onClick={() => goContractFromQuote(r.quoteId!)}>
-                  生成合同
+                  To contract
                 </TextButton>
               </div>
             ) : null}
           </div>
         ))}
         {filteredRows.length === 0 ? (
-          <p className="text-center text-sm text-slate-500">无明细记录</p>
+          <p className="text-center text-sm text-slate-500">No rows</p>
         ) : null}
       </div>
 
       <Modal
+        open={reminderOpen}
+        title="Send reminder email"
+        onClose={() => setReminderOpen(false)}
+        panelClassName="max-w-xl"
+        footer={
+          <>
+            <TextButton variant="secondary" onClick={() => setReminderOpen(false)}>
+              Cancel
+            </TextButton>
+            <TextButton variant="primary" onClick={() => void submitReminderEmail()} disabled={reminderSending}>
+              {reminderSending ? "Sending..." : "Send reminder"}
+            </TextButton>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm">
+          <div>
+            <label className="block text-xs text-slate-600">Recipient email</label>
+            <input
+              type="email"
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-2"
+              placeholder="customer@example.com"
+              value={reminderTo}
+              onChange={(e) => setReminderTo(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600">Message (optional)</label>
+            <textarea
+              rows={4}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-2"
+              value={reminderMessage}
+              onChange={(e) => setReminderMessage(e.target.value)}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         open={upgradeModal}
-        title="需升级套餐"
+        title="Upgrade required"
         onClose={() => setUpgradeModal(false)}
         footer={
           <>
             <TextButton variant="secondary" onClick={() => setUpgradeModal(false)}>
-              关闭
+              Close
             </TextButton>
-            <TextButton variant="primary" onClick={openShop}>
-              前往淘宝店铺升级
+            <TextButton variant="primary" onClick={() => router.push("/pricing")}>
+              View pricing
             </TextButton>
             <TextButton variant="secondary" onClick={() => router.push("/settings")}>
-              查看订阅
+              Settings
             </TextButton>
           </>
         }
       >
         <p className="text-sm leading-relaxed text-slate-700">
-          「从报价生成合同」需要同时具备<strong>报价</strong>与<strong>合同</strong>权益。请购买「报价+合同版」或包含双模块的套餐，并在设置中兑换激活码。
+          Creating a contract from a quote requires a plan that includes both <strong>Quotes</strong> and{" "}
+          <strong>Contracts</strong>. Upgrade your subscription.
         </p>
       </Modal>
     </div>

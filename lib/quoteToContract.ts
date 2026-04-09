@@ -18,7 +18,8 @@ export function quoteLinesToContractLines(lines: QuoteLine[]): ContractLine[] {
 export function initialClausesWithDeliveryAddress(customerAddress: string): string[] {
   const c = [...DEFAULT_CONTRACT_CLAUSES];
   if (c[1]) {
-    c[1] = `二、交货地址：${customerAddress.trim() || "________________"}（如需供方代办运输，运输费用由需方承担，具体以双方协商为准）。`;
+    const addr = customerAddress.trim() || "________________";
+    c[1] = `II. Delivery location: ${addr} (If the supplier arranges carriage, the buyer bears freight unless otherwise agreed.)`;
   }
   return c;
 }

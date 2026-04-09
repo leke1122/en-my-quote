@@ -15,7 +15,7 @@ import {
   isExpiringWithinDays,
   type MeSubscription,
 } from "@/lib/subscriptionAccess";
-import { formatDateYmdCn } from "@/lib/subscriptionPlanDisplay";
+import { formatDateUS } from "@/lib/format";
 
 const POST_LOGIN_FLAG = "quote_post_login_subscription_check";
 
@@ -61,13 +61,9 @@ export function useSubscriptionAccess(): SubscriptionAccessContextValue {
   return v;
 }
 
-/** 未包裹 Provider 时（测试/Story）可安全降级为不启用云端门禁 */
+/** Safe fallback when Provider is missing (tests / Storybook) */
 export function useSubscriptionAccessOptional(): SubscriptionAccessContextValue | null {
   return useContext(SubscriptionAccessContext);
-}
-
-function openShop(url: string) {
-  if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function PostLoginSubscriptionAlert({
@@ -107,11 +103,11 @@ function PostLoginSubscriptionAlert({
 
     if (isExpiringWithinDays(sub, true, 3)) {
       const left = daysRemainingInSubscription(sub);
-      const until = sub?.validUntil ? formatDateYmdCn(sub.validUntil) : "—";
+      const until = sub?.validUntil ? formatDateUS(sub.validUntil) : "—";
       setDetail(
         left !== null
-          ? `当前套餐将在 ${until} 到期，剩余约 ${left} 个自然日。续费后请在「设置 → 个人信息」兑换激活码。`
-          : `当前套餐即将到期（至 ${until}）。续费后请在「设置 → 个人信息」兑换激活码。`
+          ? `Your subscription ends on ${until} (about ${left} calendar day(s) left). Renew to keep access.`
+          : `Your subscription is ending soon (${until}). Renew to keep access.`
       );
       setOpen("expiring");
     }
@@ -119,31 +115,29 @@ function PostLoginSubscriptionAlert({
 
   if (!open) return null;
 
-  const shop = ctx.purchaseShopUrl;
-
   return (
     <Modal
       open
-      title={open === "expired" ? "订阅已失效" : "订阅即将到期"}
+      title={open === "expired" ? "Subscription inactive" : "Subscription ending soon"}
       onClose={() => setOpen(null)}
       footer={
         <>
           <TextButton variant="secondary" onClick={() => setOpen(null)}>
-            知道了
+            OK
           </TextButton>
           {open === "expired" ? (
-            <TextButton variant="primary" onClick={() => openShop(shop)}>
-              打开淘宝店铺
+            <TextButton variant="primary" onClick={() => router.push("/pricing")}>
+              View pricing
             </TextButton>
           ) : (
             <TextButton
               variant="primary"
               onClick={() => {
                 setOpen(null);
-                router.push("/settings");
+                router.push("/pricing");
               }}
             >
-              去设置兑换续费
+              Renew
             </TextButton>
           )}
         </>
@@ -151,22 +145,15 @@ function PostLoginSubscriptionAlert({
     >
       {open === "expired" ? (
         <div className="space-y-3 text-sm leading-relaxed text-slate-700">
-          <p>当前账号没有有效订阅（试用已结束或未兑换激活码）。报价与合同相关功能已暂停，但您仍可在「设置」中导出本地历史数据。</p>
           <p>
-            请前往淘宝店铺购买激活码，并在{" "}
+            There is no active subscription on this account. Quotes and contracts are blocked until you subscribe.
+            You can still{" "}
             <Link href="/settings" className="font-medium text-slate-900 underline-offset-2 hover:underline">
-              设置 → 个人信息
+              Settings
             </Link>{" "}
-            中粘贴兑换。
+            to export local data.
           </p>
-          <a
-            href={shop}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block font-mono text-xs text-slate-800 underline-offset-2 hover:underline"
-          >
-            {shop}
-          </a>
+          <p>Start a subscription with secure Stripe checkout.</p>
         </div>
       ) : (
         <p className="text-sm leading-relaxed text-slate-700">{detail}</p>
@@ -187,7 +174,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [cloudAuthEnabled, setCloudAuthEnabled] = useState(false);
-  const [purchaseShopUrl, setPurchaseShopUrl] = useState("https://hcwnn1122.taobao.com");
+  const [purchaseShopUrl, setPurchaseShopUrl] = useState("");
   const [trialDays, setTrialDays] = useState(14);
   const [me, setMe] = useState<MeJson | null>(null);
   const [cloudDataInited, setCloudDataInited] = useState(false);
@@ -236,7 +223,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         setCloudDataInited(true);
       }
       if (!res.ok) {
-        // 保持静默，避免每次进入页面都打断；用户仍可使用本地数据
+        // Non-blocking: user can keep using local data
         console.warn("[cloud-data] pull failed:", res.error);
       }
     })();

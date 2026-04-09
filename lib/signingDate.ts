@@ -1,6 +1,10 @@
-/** 签订日期 ISO → 「YYYY年M月D日」展示（与导出图片 onclone 一致） */
-export function formatSigningDateChinese(iso: string): string {
+/** ISO date (YYYY-MM-DD) → long English date for print/export (matches html2canvas clone). */
+export function formatSigningDateForExport(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return iso;
-  return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(dt);
 }

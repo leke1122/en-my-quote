@@ -20,6 +20,22 @@ model User {
   /// 每人一包业务数据（JSON），与本地备份结构对齐
   projectData  UserProjectData?
   paymentOrders PaymentOrder[]
+  authAccounts AuthAccount[]
+}
+
+/// OAuth / social login accounts (e.g. Google)
+model AuthAccount {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String
+  providerUserId String   @map("provider_user_id")
+  email          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@index([provider])
 }
 
 /// 用户项目数据（客户/商品/报价/合同等打一包）

@@ -1,4 +1,4 @@
-/** 与数据库 plan/status 字符串约定一致，供服务端与前端展示 */
+/** plan/status strings aligned with DB and UI */
 export type SubscriptionPlan = "trial" | "monthly" | "yearly" | "lifetime";
 
 export function isSubscriptionActive(validUntil: Date | null, plan: string): boolean {

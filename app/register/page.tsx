@@ -81,8 +81,8 @@ function PasswordField({
           type="button"
           onClick={onToggleVisible}
           className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-          aria-label={visible ? "隐藏密码" : "显示密码"}
-          title={visible ? "隐藏密码" : "显示密码"}
+          aria-label={visible ? "Hide password" : "Show password"}
+          title={visible ? "Hide password" : "Show password"}
         >
           <EyeIcon open={visible} />
         </button>
@@ -108,7 +108,7 @@ export default function RegisterPage() {
     setMsg("");
     const em = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
-      setMsg("邮箱格式不正确");
+      setMsg("Invalid email format");
       return;
     }
     if (cooldown > 0) return;
@@ -121,20 +121,20 @@ export default function RegisterPage() {
       });
       const j = (await res.json()) as { ok?: boolean; error?: string; message?: string; debugCode?: string };
       if (!res.ok || !j.ok) {
-        setMsg(j.error || "发送失败");
+        setMsg(j.error || "Send failed");
         return;
       }
       if (j.debugCode) setCode(String(j.debugCode));
       setCooldown(60);
-      setMsg(j.message || "验证码已发送，请查收邮箱");
+      setMsg(j.message || "Verification code sent. Check your inbox.");
     } catch {
-      setMsg("网络错误");
+      setMsg("Network error");
     } finally {
       setSending(false);
     }
   }
 
-  // 倒计时（仅 UI）
+  // Countdown (UI only)
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = window.setInterval(() => {
@@ -146,15 +146,15 @@ export default function RegisterPage() {
   async function submit() {
     setMsg("");
     if (password.length < 8) {
-      setMsg("密码至少 8 位");
+      setMsg("Password must be at least 8 characters");
       return;
     }
     if (password !== passwordConfirm) {
-      setMsg("两次输入的密码不一致");
+      setMsg("Passwords do not match");
       return;
     }
     if (!/^\d{6}$/.test(code.trim())) {
-      setMsg("请输入 6 位数字验证码");
+      setMsg("Enter the 6-digit verification code");
       return;
     }
     setSubmitting(true);
@@ -167,15 +167,15 @@ export default function RegisterPage() {
       });
       const j = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !j.ok) {
-        setMsg(j.error || "注册失败");
+        setMsg(j.error || "Registration failed");
         return;
       }
-      alert("注册成功，已自动登录。请前往「设置 → 个人信息」兑换激活码后使用报价与合同功能。");
+      alert("You’re signed in. Start a subscription under Settings or Pricing to use Quotes & Contracts.");
       markPostLoginSubscriptionCheck();
       router.push("/settings");
       router.refresh();
     } catch {
-      setMsg("网络错误");
+      setMsg("Network error");
     } finally {
       setSubmitting(false);
     }
@@ -183,15 +183,29 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 py-10">
-      <h1 className="text-center text-xl font-semibold text-slate-900">注册账号</h1>
+      <h1 className="text-center text-xl font-semibold text-slate-900">Create account</h1>
       <p className="mt-2 text-center text-sm text-slate-600">
-        使用邮箱验证码注册。注册后需兑换激活码方可使用功能；邮箱可用于后续找回密码。
+        Sign up with email verification. Subscribe to unlock Quotes & Contracts. Same email is used for password recovery.
       </p>
 
-      <div className="mt-8 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <a
+          href="/api/auth/google/start?redirect=%2Fsettings"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+        >
+          Continue with Google
+        </a>
+        <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span>or sign up with email</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
           <label htmlFor="reg-email" className="text-xs text-slate-600">
-            邮箱
+            Email
           </label>
           <input
             id="reg-email"
@@ -204,7 +218,7 @@ export default function RegisterPage() {
         </div>
         <div>
           <label htmlFor="reg-code" className="text-xs text-slate-600">
-            邮箱验证码
+            Verification code
           </label>
           <div className="mt-1 flex gap-2">
             <input
@@ -213,16 +227,16 @@ export default function RegisterPage() {
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
-              placeholder="6 位数字"
+              placeholder="6 digits"
             />
             <TextButton variant="secondary" disabled={sending || submitting || cooldown > 0} onClick={() => void sendCode()}>
-              {cooldown > 0 ? `${cooldown}s` : sending ? "发送中…" : "发送验证码"}
+              {cooldown > 0 ? `${cooldown}s` : sending ? "Sending…" : "Send code"}
             </TextButton>
           </div>
         </div>
         <PasswordField
           id="reg-password"
-          label="密码（至少 8 位）"
+          label="Password (min 8 characters)"
           value={password}
           onChange={setPassword}
           visible={showPw}
@@ -231,7 +245,7 @@ export default function RegisterPage() {
         />
         <PasswordField
           id="reg-password-confirm"
-          label="确认密码"
+          label="Confirm password"
           value={passwordConfirm}
           onChange={setPasswordConfirm}
           visible={showPw2}
@@ -239,18 +253,18 @@ export default function RegisterPage() {
           autoComplete="new-password"
         />
         <TextButton variant="primary" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? "提交中…" : "注册并登录"}
+          {submitting ? "Submitting…" : "Sign up & sign in"}
         </TextButton>
         {msg ? <p className="text-sm text-red-700">{msg}</p> : null}
       </div>
 
       <p className="mt-6 text-center text-sm">
         <Link href="/login" className="text-slate-800 underline-offset-2 hover:underline">
-          返回登录
+          Sign in
         </Link>
         {" · "}
         <Link href="/" className="text-slate-800 underline-offset-2 hover:underline">
-          首页
+          Home
         </Link>
       </p>
     </div>

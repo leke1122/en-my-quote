@@ -1,43 +1,68 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script";
 
 export const metadata: Metadata = {
-  title: "常见问题",
+  title: "FAQ",
   description:
-    "报价、合同导出、账号登录、邮箱验证码、数据备份等常见问题解答，便于快速上手使用。",
+    "Answers about quotes, contracts, exports, sign-in, email verification, and data backup for small businesses.",
   alternates: { canonical: "/faq" },
+  openGraph: {
+    title: "FAQ | QuoteFlow",
+    description: "Answers about mobile quoting, contracts, exports, sign-in, and backups.",
+    url: "/faq",
+    type: "website",
+  },
 };
 
 const faqs = [
   {
-    q: "支持手机直接出报价和合同吗？",
-    a: "支持。手机端可新建报价、合同并导出图片或 PDF，适合外出沟通场景。",
+    q: "Can I create quotes and contracts on my phone?",
+    a: "Yes. You can create quotes and contracts on mobile and export to image or PDF for field conversations.",
   },
   {
-    q: "数据会不会丢失？",
-    a: "业务数据默认保存在当前浏览器。建议定期在设置页执行数据导出备份；启用云端账号时可同步项目数据。",
+    q: "Could I lose my data?",
+    a: "Business data is stored in this browser by default. Export backups regularly from Settings. With a cloud account, project data can sync to the server.",
   },
   {
-    q: "邮箱验证码收不到怎么办？",
-    a: "请先检查垃圾邮件箱，再确认发件域名认证、发信地址和模板变量配置是否正确。",
+    q: "I'm not receiving the email verification code.",
+    a: "Check spam, then confirm your sender domain (SPF/DKIM), from-address, and template configuration with your email provider.",
   },
   {
-    q: "可以从报价快速生成合同吗？",
-    a: "可以。在合同新建页选择“从报价生成”，可带入明细和基础信息后再编辑。",
+    q: "Can I turn a quote into a contract?",
+    a: "Yes. On the new contract page, choose generate from a quote to pull line items and basic fields, then edit as needed.",
   },
 ];
 
 export default function FaqPage() {
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-4 py-8">
+      <Script
+        id="faq-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: f.a,
+              },
+            })),
+          }),
+        }}
+      />
       <header className="mb-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Image src="/brand-logo.svg" alt="" width={34} height={34} className="h-8 w-8 rounded-md border border-slate-200" />
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">常见问题</h1>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">FAQ</h1>
         </div>
         <Link href="/" className="text-sm text-slate-700 underline-offset-2 hover:underline">
-          返回首页
+          Back to home
         </Link>
       </header>
 
@@ -52,4 +77,3 @@ export default function FaqPage() {
     </div>
   );
 }
-

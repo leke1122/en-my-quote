@@ -1,3 +1,4 @@
+import { normalizeDocumentCurrency } from "@/lib/format";
 import type { ContractLine, ContractPartySnapshot, QuoteExtraFee } from "@/lib/types";
 
 export interface ContractSharePayload {
@@ -15,8 +16,9 @@ export interface ContractSharePayload {
   taxRate?: number;
   extraFees?: QuoteExtraFee[];
   sourceQuoteId?: string;
-  /** 分享时写入供方公章，便于异地预览 */
+  /** Supplier seal embedded for read-only preview */
   sellerSealImage?: string;
+  currency?: string;
 }
 
 export function parseContractSharePayload(raw: unknown): ContractSharePayload | null {
@@ -56,5 +58,7 @@ export function parseContractSharePayload(raw: unknown): ContractSharePayload | 
     extraFees: Array.isArray(o.extraFees) ? (o.extraFees as QuoteExtraFee[]) : [],
     sourceQuoteId: typeof o.sourceQuoteId === "string" ? o.sourceQuoteId : undefined,
     sellerSealImage: typeof o.sellerSealImage === "string" ? o.sellerSealImage : undefined,
+    currency:
+      typeof o.currency === "string" ? normalizeDocumentCurrency(o.currency) : undefined,
   };
 }
