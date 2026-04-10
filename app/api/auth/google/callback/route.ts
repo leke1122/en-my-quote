@@ -52,10 +52,17 @@ function loginRedirectWithError(url: URL, redirect: string, error: string, detai
 
 function mapOauthFailure(e: unknown): { code: string; detail: string } {
   const detail = errText(e);
+  if (/access_denied/i.test(detail)) return { code: "google_access_denied", detail };
   if (/JWT_SECRET/i.test(detail)) return { code: "auth_not_configured", detail };
   if (/Database is not configured/i.test(detail)) return { code: "auth_not_configured", detail };
+  if (/invalid_client/i.test(detail)) return { code: "google_invalid_client", detail };
+  if (/unauthorized_client/i.test(detail)) return { code: "google_unauthorized_client", detail };
+  if (/invalid_grant/i.test(detail)) return { code: "google_invalid_grant", detail };
+  if (/invalid_request/i.test(detail)) return { code: "google_invalid_request", detail };
   if (/redirect_uri_mismatch/i.test(detail)) return { code: "google_redirect_uri_mismatch", detail };
-  if (/Token exchange failed/i.test(detail)) return { code: "google_token_exchange_failed", detail };
+  if (/Token exchange failed/i.test(detail) || /oauth2\.googleapis\.com\/token/i.test(detail)) {
+    return { code: "google_token_exchange_failed", detail };
+  }
   return { code: "google_signin_failed", detail };
 }
 

@@ -55,6 +55,18 @@ export default function LoginPage() {
     if (code === "google_redirect_uri_mismatch") {
       return "Google sign-in setup error: redirect URI mismatch. Please contact support.";
     }
+    if (code === "google_invalid_client" || code === "google_unauthorized_client") {
+      return "Google sign-in is temporarily unavailable due to app configuration. Please contact support.";
+    }
+    if (code === "google_invalid_grant") {
+      return "Google sign-in session expired or has already been used. Please try signing in again.";
+    }
+    if (code === "google_invalid_request") {
+      return "Google sign-in request is invalid. Please refresh and try again.";
+    }
+    if (code === "google_access_denied") {
+      return "Google sign-in was cancelled or denied.";
+    }
     if (code === "google_token_exchange_failed") {
       return detail
         ? `Google sign-in failed. ${detail}`
